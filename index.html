@@ -106,6 +106,24 @@ const CONFIG = {
       persona: { A0: 90, Ro: 55, c: 4, maxTurns: 10, minRel: 45, bluffDetection: 0.70, startingRel: (rep) => 45 + 0.4 * (rep - 50) },
     },
   ],
+  rules: {
+    anchor: { strongMin: 75, strongMax: 90, strongPressure: 4, strongRel: -2, insultingRel: -10 },
+    askQuestion: { rel: { maya: 4, jonas: 4, victoria: 1 } },
+    trade: { rel: 3, ovBonus: 5 },
+    holdFirm: { pressure: 2, rel: { maya: -1, jonas: -3, victoria: 0 }, streakFrom: 3, streakRel: -5 },
+    concede: { rel: 2 },
+    pressureLine: { success: 8, caughtRel: -15, caughtPressure: -5 },
+    tones: {
+      warm: { rel: { maya: 3, jonas: 2, victoria: -1 }, pressure: 0 },
+      neutral: { rel: { maya: 1, jonas: 0, victoria: 0 }, pressure: 0 },
+      firm: { rel: { maya: -1, jonas: -3, victoria: 2 }, pressure: 1 },
+      hard: { rel: { maya: -6, jonas: -8, victoria: -4 }, pressure: 3 },
+    },
+    expression: {
+      open: { rel: 1, roomMargin: 15 },
+      pokerFace: { streakFrom: 4, streakRel: -2 },
+    },
+  },
 };
 
 function computeDV(levelConfig, pkg) {
@@ -182,8 +200,114 @@ function pickOpponentCounter(levelConfig, playerOfferPkg, aeff, previousCounterO
   return { pkg: chosen.pkg, ov: chosen.ov };
 }
 
+function classifyOfferChange(offerPkg, previousOwnOfferPkg) {
+  let towardOpponent = 0;
+  let towardPlayer = 0;
+  for (let i = 0; i < offerPkg.length; i++) {
+    if (offerPkg[i] > previousOwnOfferPkg[i]) towardOpponent++;
+    else if (offerPkg[i] < previousOwnOfferPkg[i]) towardPlayer++;
+  }
+  return { towardOpponent, towardPlayer };
+}
+
+function isOfferLegal(offerPkg, previousOwnOfferPkg, turnNumber) {
+  if (turnNumber < 2 || !previousOwnOfferPkg) return { legal: true, reason: null };
+  const { towardOpponent, towardPlayer } = classifyOfferChange(offerPkg, previousOwnOfferPkg);
+  if (towardPlayer >= 1 && towardOpponent === 0) {
+    return { legal: false, reason: "You can't take back what you already offered." };
+  }
+  return { legal: true, reason: null };
+}
+
+function isLineLegal(line, moveCtx) {
+  const { turnNumber, offerPkg, previousOwnOfferPkg, asksSoFar, termCount } = moveCtx;
+  const no = (reason) => ({ legal: false, reason });
+  const yes = { legal: true, reason: null };
+  const change = () => classifyOfferChange(offerPkg, previousOwnOfferPkg);
+  switch (line) {
+    case 'anchor':
+      return turnNumber === 1 ? yes : no('Anchor only works on the opening turn.');
+    case 'askQuestion':
+      return asksSoFar < termCount ? yes : no('You have already asked about every term.');
+    case 'trade': {
+      if (turnNumber < 2) return no('Trade needs an earlier offer to compare with.');
+      const { towardOpponent, towardPlayer } = change();
+      return towardOpponent >= 1 && towardPlayer >= 1 ? yes : no('Move at least one term toward them and one toward you.');
+    }
+    case 'holdFirm': {
+      if (turnNumber < 2) return no('Hold firm needs an earlier offer to hold.');
+      const { towardOpponent, towardPlayer } = change();
+      return towardOpponent === 0 && towardPlayer === 0 ? yes : no('Your offer must match your previous offer.');
+    }
+    case 'concede': {
+      if (turnNumber < 2) return no('Concede needs an earlier offer to move from.');
+      const { towardOpponent, towardPlayer } = change();
+      return towardOpponent >= 1 && towardPlayer === 0 ? yes : no('Move at least one term toward them and none toward you.');
+    }
+    case 'pressure':
+      return turnNumber >= 2 ? yes : no('Pressure only works from the second turn.');
+    default:
+      return no('Unknown line.');
+  }
+}
+
+function applyMoveEffects(line, tone, expression, persona, moveCtx) {
+  const rules = CONFIG.rules;
+  const key = moveCtx.personaKey;
+  let relDelta = 0;
+  let pressureDelta = 0;
+  let skipTimeConcession = false;
+  let isBluffAttempt = false;
+  let tradeBonus = 0;
+  let anchorResult = null;
+
+  if (line === 'anchor') {
+    const r = rules.anchor;
+    if (moveCtx.offerDV > r.strongMax) {
+      relDelta += r.insultingRel;
+      anchorResult = 'insulting';
+    } else if (moveCtx.offerDV >= r.strongMin) {
+      pressureDelta += r.strongPressure;
+      relDelta += r.strongRel;
+      anchorResult = 'strong';
+    } else {
+      anchorResult = 'weak';
+    }
+  } else if (line === 'askQuestion') {
+    relDelta += rules.askQuestion.rel[key];
+  } else if (line === 'trade') {
+    relDelta += rules.trade.rel;
+    tradeBonus = rules.trade.ovBonus;
+  } else if (line === 'holdFirm') {
+    const r = rules.holdFirm;
+    pressureDelta += r.pressure;
+    relDelta += r.rel[key];
+    if (moveCtx.holdFirmStreak + 1 >= r.streakFrom) relDelta += r.streakRel;
+  } else if (line === 'concede') {
+    relDelta += rules.concede.rel;
+    if (moveCtx.lastLine === 'concede') skipTimeConcession = true;
+  } else if (line === 'pressure') {
+    isBluffAttempt = true;
+  }
+
+  const t = rules.tones[tone];
+  relDelta += t.rel[key];
+  pressureDelta += t.pressure;
+
+  if (expression === 'open') {
+    const r = rules.expression.open;
+    relDelta += r.rel;
+    if (moveCtx.offerDV != null && moveCtx.offerDV >= moveCtx.W + r.roomMargin) skipTimeConcession = true;
+  } else if (expression === 'pokerFace') {
+    const r = rules.expression.pokerFace;
+    if (moveCtx.pokerFaceStreak + 1 >= r.streakFrom) relDelta += r.streakRel;
+  }
+
+  return { relDelta, pressureDelta, skipTimeConcession, isBluffAttempt, tradeBonus, anchorResult };
+}
+
 // ---- end of game logic ----
-if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter }; }
+if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter, classifyOfferChange, isOfferLegal, isLineLegal, applyMoveEffects }; }
 </script>
 </body>
 </html>
