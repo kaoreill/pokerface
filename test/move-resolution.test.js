@@ -67,6 +67,31 @@ test('Anchor is legal on turn 1 only', () => {
   assert.strictEqual(typeof r.reason, 'string');
 });
 
+test('Anchor is legal on turn 2+ while no own offer exists yet, and illegal once one does', () => {
+  const { isLineLegal } = loadGame();
+  assert.strictEqual(isLineLegal('anchor', ctx({ turnNumber: 2, previousOwnOfferPkg: null })).legal, true);
+  assert.strictEqual(isLineLegal('anchor', ctx({ turnNumber: 4, previousOwnOfferPkg: null })).legal, true);
+  const r = isLineLegal('anchor', ctx({ turnNumber: 2, previousOwnOfferPkg: [0, 0] }));
+  assert.strictEqual(r.legal, false);
+  assert.strictEqual(r.reason, 'Only for your opening offer.');
+});
+
+test('Turn 2+ with no previous own offer: trade/holdFirm/concede are illegal and do not throw', () => {
+  const { isLineLegal } = loadGame();
+  for (const line of ['trade', 'holdFirm', 'concede']) {
+    const r = isLineLegal(line, ctx({ turnNumber: 2, offerPkg: [1, 1], previousOwnOfferPkg: null }));
+    assert.strictEqual(r.legal, false, line);
+    assert.strictEqual(r.reason, 'Make an opening offer first.', line);
+  }
+});
+
+test('Turn 2+ with no previous own offer: askQuestion and pressure are unaffected', () => {
+  const { isLineLegal } = loadGame();
+  const c = ctx({ turnNumber: 2, offerPkg: [1, 1], previousOwnOfferPkg: null });
+  assert.strictEqual(isLineLegal('askQuestion', c).legal, true);
+  assert.strictEqual(isLineLegal('pressure', c).legal, true);
+});
+
 test('Ask a question is legal on any turn while asksSoFar < termCount', () => {
   const { isLineLegal } = loadGame();
   assert.strictEqual(isLineLegal('askQuestion', ctx({ turnNumber: 1, previousOwnOfferPkg: null })).legal, true);

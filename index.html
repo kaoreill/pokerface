@@ -226,21 +226,24 @@ function isLineLegal(line, moveCtx) {
   const change = () => classifyOfferChange(offerPkg, previousOwnOfferPkg);
   switch (line) {
     case 'anchor':
-      return turnNumber === 1 ? yes : no('Anchor only works on the opening turn.');
+      return previousOwnOfferPkg == null ? yes : no('Only for your opening offer.');
     case 'askQuestion':
       return asksSoFar < termCount ? yes : no('You have already asked about every term.');
     case 'trade': {
       if (turnNumber < 2) return no('Trade needs an earlier offer to compare with.');
+      if (!previousOwnOfferPkg) return no('Make an opening offer first.');
       const { towardOpponent, towardPlayer } = change();
       return towardOpponent >= 1 && towardPlayer >= 1 ? yes : no('Move at least one term toward them and one toward you.');
     }
     case 'holdFirm': {
       if (turnNumber < 2) return no('Hold firm needs an earlier offer to hold.');
+      if (!previousOwnOfferPkg) return no('Make an opening offer first.');
       const { towardOpponent, towardPlayer } = change();
       return towardOpponent === 0 && towardPlayer === 0 ? yes : no('Your offer must match your previous offer.');
     }
     case 'concede': {
       if (turnNumber < 2) return no('Concede needs an earlier offer to move from.');
+      if (!previousOwnOfferPkg) return no('Make an opening offer first.');
       const { towardOpponent, towardPlayer } = change();
       return towardOpponent >= 1 && towardPlayer === 0 ? yes : no('Move at least one term toward them and none toward you.');
     }
