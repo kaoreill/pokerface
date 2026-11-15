@@ -4,8 +4,106 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Poker Face</title>
+<style>
+:root { --felt: #0b4a2f; --card: #fbf6e6; --ink: #1d1d1f; --muted: #5d5a4c; --gold: #d4a937; --red: #b3202a; --edge: #e2d6a8; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; min-height: 100vh; color: #f6f1dc; font: 16px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: radial-gradient(ellipse at 50% 25%, #17714a 0%, #0b4a2f 55%, #04190f 100%) fixed; }
+#app { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+h1, h2, h3 { margin: 0 0 .5rem; line-height: 1.2; }
+h1 { font-size: 1.7rem; color: var(--gold); }
+h2 { font-size: 1.1rem; }
+h1:focus { outline: none; }
+.muted { color: var(--muted); font-size: .9rem; }
+.suit { font-weight: 700; } .suit.red { color: var(--red); } .suit.blk { color: #111; }
+.felt-text { color: #cfe3d4; }
+:focus-visible { outline: 3px solid #0b57d0; outline-offset: 2px; box-shadow: 0 0 0 2px #fff; }
+.panel { position: relative; overflow: hidden; background: var(--card); color: var(--ink); border: 2px solid var(--edge);
+  border-radius: 14px; padding: 1rem; margin-bottom: .8rem; box-shadow: 0 3px 10px rgba(0, 0, 0, .35); }
+.panel::after { content: var(--wm, '♠'); position: absolute; right: .5rem; bottom: -.9rem; font-size: 5rem; opacity: .07; pointer-events: none; }
+.panel .muted { color: var(--muted); }
+.btn { font: inherit; font-weight: 700; cursor: pointer; padding: .6rem 1rem; border-radius: 10px; border: 2px solid #8a6d12;
+  background: linear-gradient(#f0cd62, var(--gold)); color: #231a00; }
+.btn.secondary { background: #fffdf4; border-color: #b9a96a; color: var(--ink); }
+.btn.danger { background: #fbe3e1; border-color: #b3202a; color: #6b0f16; }
+.btn:disabled, .tcard:disabled { opacity: .5; cursor: not-allowed; }
+.row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-top: .8rem; }
+.levels { list-style: none; padding: 0; margin: .8rem 0; display: grid; gap: .6rem; }
+.lvl { width: 100%; text-align: left; font-size: 1.05rem; }
+.lock { font-weight: 400; font-size: .85rem; margin-left: .4rem; }
+.big { font-size: 3rem; font-weight: 800; color: var(--felt); line-height: 1; }
+input[type=range] { width: 100%; accent-color: var(--felt); min-height: 1.6rem; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { border-bottom: 1px solid var(--edge); padding: .3rem .4rem; text-align: left; vertical-align: top; }
+.tablewrap { overflow-x: auto; }
+ul.tips { padding-left: 1.2rem; margin: .3rem 0; }
+/* chip-stack meters */
+.meters { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
+.meter { display: flex; gap: .5rem; align-items: flex-end; padding: .6rem; margin-bottom: .6rem; }
+.meter .minfo { flex: 1; min-width: 0; }
+.mlabel { font-weight: 700; font-size: .85rem; }
+.num { font-size: 1.5rem; }
+.delta { font-weight: 700; margin-left: .3rem; }
+.delta.show { animation: pop .6s ease-out; }
+.delta.pos { color: #1b7f3a; } .delta.neg { color: var(--red); }
+.stack { display: flex; flex-direction: column-reverse; align-items: center; width: 2.4rem; min-height: 1rem; flex: none; }
+.chip { width: 2.4rem; height: .5rem; margin-top: -.06rem; border-radius: .25rem; border: 1px solid rgba(0, 0, 0, .45);
+  background: repeating-linear-gradient(90deg, #f7f7f7 0 5px, var(--chip) 5px 14px); animation: chipIn .35s ease-out; }
+.m-dv { --chip: #2e7d32; } .m-dv.low { --chip: #c62828; } .m-rel { --chip: #1565c0; } .m-rep { --chip: #6a1b9a; }
+.bar { position: relative; height: .6rem; background: #ddd5b5; border-radius: .3rem; margin: .2rem 0; }
+.fill { display: block; height: 100%; width: 0; border-radius: .3rem; background: var(--chip); transition: width .6s ease; }
+.tick { position: absolute; top: -.25rem; width: 3px; height: 1.1rem; background: var(--gold); border: 1px solid #5c4600; margin-left: -1px; }
+/* table layout */
+.table-grid { display: grid; gap: .8rem; grid-template-columns: 1fr; align-items: start; }
+.opp-head { display: flex; gap: .8rem; align-items: center; }
+.face { font-size: 2.6rem; line-height: 1; }
+.chat { max-height: 16rem; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding: .3rem; border-radius: 8px; background: rgba(0, 0, 0, .05); }
+.msg { padding: .5rem .7rem; border-radius: 12px; max-width: 94%; }
+.msg p { margin: .25rem 0; }
+.msg.you { align-self: flex-end; background: #dcefe2; border: 1px solid #9bc9aa; }
+.msg.opp { align-self: flex-start; background: #fff; border: 1px solid #d8d2b8; }
+.msg.coach { align-self: stretch; max-width: 100%; background: #1f2a44; color: #e8ecff; font-style: italic; border-left: 5px solid var(--gold); }
+.tag { display: inline-block; font-size: .78rem; padding: 0 .4rem; border-radius: .6rem; background: #fff3c4; border: 1px solid #d4b94f; margin-right: .2rem; }
+.term { display: grid; grid-template-columns: 1fr auto; gap: .1rem .6rem; margin-bottom: .7rem; }
+.term input, .term .counter { grid-column: 1 / -1; }
+.term .val { font-weight: 800; color: var(--felt); }
+.counter { font-size: .88rem; color: #7a4a00; }
+.dv-read { font-weight: 700; } .dv-read.bad { color: var(--red); }
+.cards { display: grid; gap: .5rem; grid-template-columns: 1fr; }
+.tcard { font: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: .15rem; padding: .55rem .7rem;
+  background: #fffdf4; color: var(--ink); border: 2px solid #cdbf91; border-radius: 10px; }
+.tcard[aria-pressed=true] { border-color: var(--gold); background: #fff0b8; box-shadow: inset 0 0 0 2px var(--gold); }
+.tcard:disabled { background: #e6e2d2; color: #6c6858; }
+.cname { font-weight: 800; } .csay { font-size: .9rem; } .reason { font-size: .82rem; color: var(--red); font-weight: 600; }
+.group { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .6rem; }
+.tog { font: inherit; cursor: pointer; padding: .4rem .7rem; border-radius: 999px; border: 2px solid #b9a96a; background: #fffdf4; color: var(--ink); }
+.tog[aria-pressed=true] { background: var(--felt); color: #fff; border-color: #052a1a; }
+.banner { background: #fff0b8; border: 2px solid var(--gold); border-radius: 10px; padding: .6rem .8rem; font-weight: 800; margin-bottom: .6rem; }
+dialog { border: 3px solid var(--gold); border-radius: 14px; background: var(--card); color: var(--ink); max-width: 24rem; padding: 1.2rem; }
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
+@keyframes pop { 0% { transform: scale(.4); } 60% { transform: scale(1.4); } 100% { transform: scale(1); } }
+@keyframes chipIn { from { transform: translateY(-.8rem); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (min-width: 700px) {
+  .table-grid { grid-template-columns: 1fr 1fr; }
+  .col-ctl { grid-column: 1; grid-row: 1; } .col-opp { grid-column: 2; grid-row: 1; position: sticky; top: .5rem; }
+  .chat { max-height: 26rem; } .cards { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 420px) { .meter { flex-direction: column; align-items: stretch; } .stack { align-self: center; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
 </head>
 <body>
+<div id="app"></div>
+<dialog id="confirm" aria-labelledby="confirm-msg">
+  <form method="dialog">
+    <p id="confirm-msg"></p>
+    <div class="row">
+      <button class="btn secondary" value="cancel" autofocus>Cancel</button>
+      <button class="btn" value="ok" id="confirm-ok">OK</button>
+    </div>
+  </form>
+</dialog>
 <script>
 // Every tunable number in the game lives in CONFIG.
 const CONFIG = {
@@ -16,15 +114,30 @@ const CONFIG = {
       suit: '♣',
       opponentName: 'Maya',
       personaKey: 'maya',
+      briefing: {
+        you: 'You are a founder hiring your first key engineer.',
+        opponent: 'Maya is friendly and enthusiastic about the company.',
+        stakes: 'Settle her salary and her equity stake.',
+      },
+      playerLines: {
+        anchor: "Here's the package I'd like to start from. I think it reflects the risk we're both taking.",
+        askQuestion: "Before I move, what matters most to you in this offer?",
+        trade: "I can stretch on one thing if you can meet me on another.",
+        holdFirm: "This is where I am. I'd like to stay with this offer.",
+        concede: "Okay, I can move a little toward you here.",
+        pressure: "I have other strong candidates, so I need us to land close to this.",
+      },
       terms: [
         {
           name: 'Salary',
+          format: 'thousands',
           options: [60000, 62500, 65000, 67500, 70000, 72500, 75000, 77500, 80000, 82500, 85000, 87500, 90000],
           playerWeight: 0.70,
           opponentWeight: 0.40,
         },
         {
           name: 'Equity',
+          format: 'percent',
           options: [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0],
           playerWeight: 0.30,
           opponentWeight: 0.60,
@@ -90,9 +203,23 @@ const CONFIG = {
       suit: '♦',
       opponentName: 'Jonas',
       personaKey: 'jonas',
+      briefing: {
+        you: 'You are the CEO, splitting the company with your technical co-founder.',
+        opponent: 'Jonas is proud and sensitive, and wants recognition. You will work with him for years.',
+        stakes: 'Settle the equity split, who has the final say, and the role Jonas takes.',
+      },
+      playerLines: {
+        anchor: "As CEO, this is the split I'd propose. It reflects the risk I've carried.",
+        askQuestion: "Help me understand what matters most to you in this split.",
+        trade: "I'll give on one point if you give on another.",
+        holdFirm: "I've thought it through, and this is still my position.",
+        concede: "Fair enough. I'll move toward you on this.",
+        pressure: "Another technical co-founder has approached me, so I need a deal I can say yes to.",
+      },
       terms: [
         {
           name: 'Your equity share',
+          format: 'percent',
           options: [70, 65, 60, 55, 50, 45, 40],
           playerWeight: 0.50,
           opponentWeight: 0.30,
@@ -175,9 +302,23 @@ const CONFIG = {
       suit: '♠',
       opponentName: 'Victoria',
       personaKey: 'victoria',
+      briefing: {
+        you: 'A larger rival wants to merge with your startup, and you negotiate for your side.',
+        opponent: 'Victoria is the rival CEO: tough, well prepared, and she respects firmness. She opens by commenting on your reputation.',
+        stakes: 'Settle valuation, payment, your role, your team\'s job guarantee and the brand.',
+      },
+      playerLines: {
+        anchor: "Here is the package we believe reflects what our company is worth.",
+        askQuestion: "Tell me what your board cares about most in this merger.",
+        trade: "We can flex on one term if you give us ground on another.",
+        holdFirm: "Our position hasn't changed. This is what we need.",
+        concede: "We can move toward you on this point.",
+        pressure: "I have another bidder interested, so this needs to be a stronger offer.",
+      },
       terms: [
         {
           name: 'Valuation of your company',
+          format: 'millions',
           options: [12, 11, 10, 9, 8],
           playerWeight: 0.30,
           opponentWeight: 0.35,
@@ -196,6 +337,7 @@ const CONFIG = {
         },
         {
           name: 'Job guarantee for your team',
+          format: 'months',
           options: [24, 18, 12, 6, 0],
           playerWeight: 0.30,
           opponentWeight: 0.05,
@@ -276,6 +418,16 @@ const CONFIG = {
       },
     },
   ],
+  ui: {
+    lineMin: 30,
+    lineDefault: 50,
+    chipValue: 10,
+    maxChips: 10,
+    maxTips: 3,
+    concedeTipMin: 2,
+    holdFirmTipMin: 3,
+    highScoreKey: 'pokerface.highScore',
+  },
   rules: {
     anchor: { strongMin: 75, strongMax: 90, strongPressure: 4, strongRel: -2, insultingRel: -10 },
     askQuestion: { rel: { maya: 4, jonas: 4, victoria: 1 } },
@@ -922,6 +1074,612 @@ function getCoachTip(context) {
   if (relDelta < 0) return 'That cost you some goodwill. Watch how they react before your next move.';
   return "Nothing moved there. Look for a term they'd value more than you do.";
 }
+
+// ---- UI layer: screens, theme and interaction (DOM code only runs inside initUI) ----
+const UI_TEXT = {
+  lines: {
+    anchor: { icon: '⚓', name: 'Anchor' },
+    askQuestion: { icon: '❓', name: 'Ask a question' },
+    trade: { icon: '🔁', name: 'Trade' },
+    holdFirm: { icon: '🧱', name: 'Hold firm' },
+    concede: { icon: '🤝', name: 'Concede' },
+    pressure: { icon: '🃏', name: 'Pressure' },
+  },
+  tones: [
+    { key: 'warm', icon: '🤗', name: 'Warm' },
+    { key: 'neutral', icon: '😌', name: 'Neutral' },
+    { key: 'firm', icon: '😤', name: 'Firm' },
+    { key: 'hard', icon: '🔥', name: 'Hard' },
+  ],
+  expressions: [
+    { key: 'open', icon: '🙂', name: 'Open' },
+    { key: 'pokerFace', icon: '😐', name: 'Poker face' },
+  ],
+  defaultTone: 'neutral',
+  defaultExpression: 'pokerFace',
+  endings: {
+    deal: 'You closed the deal at or above your line with the relationship intact. Level cleared.',
+    wonLostRelationship: 'You reached your line, but the relationship fell below the minimum. Level failed.',
+    foldCleared: 'You folded to save the deal and the relationship held. Level cleared.',
+    foldFailed: 'You folded, but the relationship was still too weak. Level failed.',
+    walk: 'You walked away from the table. Level failed.',
+    opponentWalk: 'The opponent walked out on you. Level failed.',
+  },
+};
+const LINE_ORDER = Object.keys(UI_TEXT.lines);
+
+function createGame(highScore) {
+  return {
+    screen: 'title',
+    levelIndex: 0,
+    rep: CONFIG.rules.reputation.start,
+    repBeforeAttempt: CONFIG.rules.reputation.start,
+    levelScores: CONFIG.levels.map(() => 0),
+    cleared: CONFIG.levels.map(() => false),
+    W: null,
+    hand: null,
+    draft: null,
+    result: null,
+    lastReplyHTML: '',
+    highScore: highScore == null ? null : highScore,
+  };
+}
+const game = createGame(null);
+
+// ---- small helpers ----
+const $ = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function fmtNum(n) { return String(Math.round(n * 10) / 10); }
+function fmtDelta(n) { const v = Math.round(n * 10) / 10; return v > 0 ? '+' + v : v < 0 ? '−' + (-v) : '0'; }
+function suitHTML(s) { return `<span class="suit ${s === '♥' || s === '♦' ? 'red' : 'blk'}" aria-hidden="true">${s}</span>`; }
+function curLevel() { return CONFIG.levels[game.levelIndex]; }
+function readHighScore() {
+  try {
+    const n = parseInt(localStorage.getItem(CONFIG.ui.highScoreKey), 10);
+    return Number.isFinite(n) ? n : null;
+  } catch (e) { return null; }
+}
+function writeHighScore(n) {
+  try { localStorage.setItem(CONFIG.ui.highScoreKey, String(n)); } catch (e) { /* storage unavailable: ignore */ }
+}
+function trimNum(x) { return String(Math.round(x * 100) / 100); }
+
+function formatOption(level, termIndex, optionIndex) {
+  const term = level.terms[termIndex];
+  const v = term.options[optionIndex];
+  switch (term.format) {
+    case 'thousands': return '€' + trimNum(v / 1000) + 'k';
+    case 'millions': return '€' + trimNum(v) + 'M';
+    case 'percent': return trimNum(v) + ' %';
+    case 'months': return trimNum(v) + ' months';
+    default: return String(v);
+  }
+}
+function describePackage(level, pkg) {
+  if (!pkg) return 'no offer yet';
+  return pkg.map((o, i) => `${level.terms[i].name} ${formatOption(level, i, o)}`).join(' · ');
+}
+
+// Render a screen into #app and move focus to its heading.
+function show(html, suit) {
+  const app = $('#app');
+  app.style.setProperty('--wm', `'${suit || '♠'}'`);
+  app.innerHTML = html;
+  const h = $('#screen-heading');
+  if (h) h.focus();
+  if (typeof window.scrollTo === 'function') window.scrollTo(0, 0);
+}
+
+// ---- 1. Title ----
+function renderTitle() {
+  game.screen = 'title';
+  const items = CONFIG.levels.map((lv, i) => {
+    const locked = i > 0 && !game.cleared[i - 1];
+    const note = locked ? `<span class="lock">🔒 clear level ${i} first</span>` : (game.cleared[i] ? ' ✅ cleared' : '');
+    return `<li><button class="btn lvl" data-act="level" data-level="${i}"${locked ? ' disabled' : ''}>${suitHTML(lv.suit)} Level ${i + 1} · ${esc(lv.name)} <span class="lock">vs ${esc(lv.opponentName)}</span>${note}</button></li>`;
+  }).join('');
+  show(`
+    <h1 id="screen-heading" tabindex="-1">♠ ♥ Poker Face ♦ ♣</h1>
+    <p class="felt-text">Three negotiations. Hold the line, or fold to save the deal?</p>
+    <section class="panel" aria-label="Choose a level">
+      <h2>Choose a table</h2>
+      <ul class="levels">${items}</ul>
+      <p>Reputation: <strong>${fmtNum(game.rep)}</strong> · High score: <strong>${game.highScore == null ? '—' : game.highScore}</strong></p>
+      <div class="row"><button class="btn secondary" data-act="final">Final score</button></div>
+    </section>`, '♠');
+}
+
+// ---- 2. Briefing ----
+function renderBriefing() {
+  game.screen = 'briefing';
+  const lv = curLevel();
+  const rows = lv.terms.map((t, i) => `<tr><th scope="row">${esc(t.name)}</th><td>${esc(formatOption(lv, i, 0))}</td><td>${esc(formatOption(lv, i, t.options.length - 1))}</td><td>${Math.round(t.playerWeight * 100)} %</td><td>?</td></tr>`).join('');
+  show(`
+    <h1 id="screen-heading" tabindex="-1">${suitHTML(lv.suit)} Level ${game.levelIndex + 1}: ${esc(lv.name)}</h1>
+    <section class="panel">
+      <h2>The situation</h2>
+      <p>${esc(lv.briefing.you)}</p>
+      <p><strong>${esc(lv.opponentName)}:</strong> ${esc(lv.briefing.opponent)}</p>
+      <p>${esc(lv.briefing.stakes)}</p>
+    </section>
+    <section class="panel">
+      <h2>What is on the table</h2>
+      <div class="tablewrap" tabindex="0" role="region" aria-label="Terms table">
+        <table><thead><tr><th>Term</th><th>Best for you</th><th>Worst for you</th><th>Matters to you</th><th>Matters to ${esc(lv.opponentName)}</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      <p class="muted">Their priorities are hidden. Asking questions reveals them.</p>
+    </section>
+    <section class="panel">
+      <h2>Your stacks</h2>
+      <p>Relationship starts at <strong>${fmtNum(clampRel(lv.persona.startingRel(game.rep)))}</strong>. You need <strong>${lv.persona.minRel}</strong> or more to clear this level. You have <strong>${lv.persona.maxTurns}</strong> turns. Reputation: <strong>${fmtNum(game.rep)}</strong>.</p>
+      <div class="row"><button class="btn" data-act="begin">Set your line</button><button class="btn secondary" data-act="menu">Menu</button></div>
+    </section>`, lv.suit);
+}
+
+// ---- 3. Set your line ----
+function renderSetLine() {
+  game.screen = 'setLine';
+  const lv = curLevel();
+  const min = CONFIG.ui.lineMin;
+  const max = Math.max(computeMaxLine(lv), min);
+  const def = Math.min(CONFIG.ui.lineDefault, max);
+  show(`
+    <h1 id="screen-heading" tabindex="-1">${suitHTML(lv.suit)} Set your line</h1>
+    <section class="panel">
+      <p>Your line <strong>W</strong> is the lowest deal value you will accept. A higher line earns a bigger bonus (${CONFIG.rules.score.line} × W in your score) but is harder to hit. Accepting less than your line is a fold: it can save the deal, but you lose the line bonus.</p>
+      <p>The highest line that is realistic here is <strong>${max}</strong>. Once the hand starts, your line is locked.</p>
+      <label for="line-range"><strong>Your line</strong></label>
+      <input type="range" id="line-range" min="${min}" max="${max}" step="1" value="${def}">
+      <p class="big" id="line-out" aria-live="polite">${def}</p>
+      <p id="line-bonus" class="muted">Line bonus if you clear without folding: ${CONFIG.rules.score.line * def} points.</p>
+      <div class="row"><button class="btn" data-act="lock">Go to the table</button><button class="btn secondary" data-act="begin-back">Back</button></div>
+    </section>`, lv.suit);
+}
+
+// ---- 4. The table ----
+function initialOffer(level, hand) {
+  return hand.previousOwnOfferPkg ? hand.previousOwnOfferPkg.slice() : level.terms.map((t) => Math.floor((t.options.length - 1) / 2));
+}
+function makeDraft(level, hand) {
+  return { line: null, tone: UI_TEXT.defaultTone, expression: UI_TEXT.defaultExpression, offer: initialOffer(level, hand) };
+}
+function startHand() {
+  const lv = curLevel();
+  const W = parseInt($('#line-range').value, 10);
+  game.W = W;
+  game.hand = createInitialHandState(lv, W, game.rep);
+  game.draft = makeDraft(lv, game.hand);
+  game.result = null;
+  game.lastReplyHTML = '';
+  renderTable();
+  const first = getReactionFace(0);
+  addChat('opp', oppMsgHTML(first, [getOpponentLine({ personaKey: lv.personaKey, special: 'opening', repBand: repBand(game.rep) })]));
+}
+
+function meterHTML(id, label, icon) {
+  return `<div class="panel meter ${id}" id="${id}"><div class="stack" aria-hidden="true"></div><div class="minfo"><div class="mlabel">${icon} ${label}</div><div><strong class="num">0</strong><span class="delta" aria-live="polite"></span></div><div class="bar"><i class="fill"></i><b class="tick" hidden></b></div><div class="mark muted"></div></div></div>`;
+}
+function toggleGroup(act, items, labelId, label) {
+  const btns = items.map((it) => `<button type="button" class="tog" data-act="${act}" data-key="${it.key}" aria-pressed="false">${it.icon} ${it.name}</button>`).join('');
+  return `<h3 id="${labelId}">${label}</h3><div class="group" role="group" aria-labelledby="${labelId}">${btns}</div>`;
+}
+
+function renderTable() {
+  game.screen = 'table';
+  const lv = curLevel();
+  const sliders = lv.terms.map((t, i) => `
+    <div class="term">
+      <label for="s${i}">${esc(t.name)}</label>
+      <output id="v${i}" class="val" for="s${i}"></output>
+      <input type="range" id="s${i}" data-term="${i}" min="0" max="${t.options.length - 1}" step="1" value="${game.draft.offer[i]}">
+      <span class="counter" id="c${i}"></span>
+    </div>`).join('');
+  const cards = LINE_ORDER.map((k) => `<button type="button" class="tcard" data-act="card" data-key="${k}" aria-pressed="false" aria-describedby="r-${k}"><span class="cname">${UI_TEXT.lines[k].icon} ${UI_TEXT.lines[k].name}</span><span class="csay">“${esc(lv.playerLines[k])}”</span><span class="reason" id="r-${k}"></span></button>`).join('');
+  show(`
+    <h1 id="screen-heading" tabindex="-1">${suitHTML(lv.suit)} ${esc(lv.name)}: the table</h1>
+    <div class="meters">${meterHTML('m-dv', 'Deal value', '💰')}${meterHTML('m-rel', 'Relationship', '🤝')}${meterHTML('m-rep', 'Reputation', '⭐')}</div>
+    <div class="table-grid">
+      <section class="panel col-opp" aria-label="${esc(lv.opponentName)}">
+        <div class="opp-head"><span class="face" id="opp-face" aria-hidden="true">😐</span>
+          <div><h2>${esc(lv.opponentName)}</h2><div id="opp-caption" class="muted"></div><div id="turn-count" class="muted"></div></div></div>
+        <div id="chat" class="chat" role="log" aria-live="polite" aria-label="Conversation" tabindex="0"></div>
+      </section>
+      <div class="col-ctl">
+        <section class="panel" id="builder">
+          <h2>Your offer</h2>
+          <p class="muted">Left of each slider is best for you, right is worst.</p>
+          <div id="sliders">${sliders}</div>
+          <p id="ask-note" class="muted" hidden>Asking a question locks your offer, so there is nothing to build this turn.</p>
+          <p class="dv-read" id="dv-read" aria-live="polite"></p>
+          <p class="reason" id="offer-msg" role="status"></p>
+        </section>
+        <section class="panel" id="intel"><h2>🔍 Intel</h2><div id="intel-body"></div></section>
+        <section class="panel" id="moves">
+          <h2>Your line</h2>
+          <div class="cards">${cards}</div>
+          ${toggleGroup('tone', UI_TEXT.tones, 'tone-h', 'Tone')}
+          ${toggleGroup('expr', UI_TEXT.expressions, 'expr-h', 'Expression')}
+        </section>
+        <section class="panel" id="actions">
+          <div id="final-banner" class="banner" hidden>Final offer — accept or walk away</div>
+          <p id="their-offer"></p>
+          <p class="reason" id="play-hint" role="status"></p>
+          <div class="row">
+            <button type="button" class="btn" id="play" data-act="play">Play move</button>
+            <button type="button" class="btn secondary" id="accept" data-act="accept">Accept their offer</button>
+            <button type="button" class="btn danger" id="walk" data-act="walk">Walk away</button>
+          </div>
+        </section>
+      </div>
+    </div>`, lv.suit);
+  updateTableControls();
+}
+
+function addChat(kind, html) {
+  const chat = $('#chat');
+  if (!chat) return;
+  const div = document.createElement('div');
+  div.className = 'msg ' + kind;
+  div.innerHTML = html;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+function oppMsgHTML(face, lines, extra) {
+  const lv = curLevel();
+  const spoken = lines.map((l) => `<p>“${esc(l)}”</p>`).join('');
+  return `<div><span class="face" style="font-size:1.6rem" aria-hidden="true">${face.face}</span> <strong>${esc(lv.opponentName)}</strong> <span class="muted">${esc(face.caption)}</span></div>${spoken}${extra || ''}`;
+}
+
+function paintMeter(id, value, mark) {
+  const m = $('#' + id);
+  if (!m) return;
+  const stack = $('.stack', m);
+  const want = Math.min(CONFIG.ui.maxChips, Math.max(0, Math.ceil(value / CONFIG.ui.chipValue - 1e-9)));
+  while (stack.children.length < want) { const c = document.createElement('span'); c.className = 'chip'; stack.appendChild(c); }
+  while (stack.children.length > want) stack.removeChild(stack.lastChild);
+  $('.num', m).textContent = fmtNum(value);
+  $('.fill', m).style.width = Math.max(0, Math.min(100, value)) + '%';
+  const tick = $('.tick', m);
+  if (mark) { tick.hidden = false; tick.style.left = mark.at + '%'; $('.mark', m).textContent = mark.text; }
+}
+function showRelDelta(delta) {
+  const el = $('#m-rel .delta');
+  if (!el) return;
+  el.textContent = `(${fmtDelta(delta)})`;
+  el.className = 'delta show ' + (delta > 0 ? 'pos' : delta < 0 ? 'neg' : '');
+}
+function setPressed(btn, on) { btn.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+
+// Re-evaluate everything that depends on the draft and the hand, without touching the chat log.
+function updateTableControls() {
+  const lv = curLevel();
+  const hand = game.hand;
+  const d = game.draft;
+  const final = hand.isFinalOffer;
+  const prev = hand.previousOwnOfferPkg;
+  const eps = CONFIG.rules.dvEpsilon;
+
+  const ctx = {
+    personaKey: lv.personaKey, turnNumber: hand.turnNumber, offerPkg: d.offer, previousOwnOfferPkg: prev,
+    offerDV: computeDV(lv, d.offer), W: game.W, asksSoFar: hand.asksSoFar, termCount: lv.terms.length,
+    holdFirmStreak: hand.holdFirmStreak, pokerFaceStreak: hand.pokerFaceStreak, lastLine: hand.lastLine,
+  };
+  // Cards: legality is judged on the draft offer; drop a selection that has become illegal.
+  const legal = {};
+  LINE_ORDER.forEach((k) => { legal[k] = isLineLegal(k, ctx); });
+  if (d.line && !legal[d.line].legal) d.line = null;
+  $$('.tcard').forEach((b) => {
+    const k = b.dataset.key;
+    b.disabled = !legal[k].legal;
+    setPressed(b, d.line === k);
+    $('#r-' + k).textContent = legal[k].legal ? '' : legal[k].reason;
+  });
+  $$('[data-act=tone]').forEach((b) => setPressed(b, d.tone === b.dataset.key));
+  $$('[data-act=expr]').forEach((b) => setPressed(b, d.expression === b.dataset.key));
+
+  // Offer builder: locked to the previous offer while asking, hidden if there is none.
+  const asking = d.line === 'askQuestion';
+  const shown = asking && prev ? prev : d.offer;
+  $('#sliders').hidden = asking && !prev;
+  $('#ask-note').hidden = !(asking && !prev);
+  lv.terms.forEach((t, i) => {
+    const input = $('#s' + i);
+    input.value = shown[i];
+    input.disabled = asking;
+    const text = formatOption(lv, i, shown[i]);
+    $('#v' + i).textContent = text;
+    input.setAttribute('aria-valuetext', text);
+    const c = hand.opponentCounterPkg;
+    $('#c' + i).textContent = 'Their offer: ' + (c ? formatOption(lv, i, c[i]) : '—');
+  });
+  $('#builder').hidden = final;
+  $('#moves').hidden = final;
+  $('#final-banner').hidden = !final;
+  $('#play').hidden = final;
+
+  // DV readout and meter.
+  const dvPkg = final && hand.opponentCounterPkg ? hand.opponentCounterPkg : shown;
+  const dv = computeDV(lv, dvPkg);
+  const below = dv + eps < game.W;
+  $('#dv-read').textContent = `This offer is worth ${fmtNum(dv)} to you (your line: ${game.W}).`;
+  $('#dv-read').classList.toggle('bad', below);
+  const dvMeter = $('#m-dv');
+  dvMeter.classList.toggle('low', below);
+  paintMeter('m-dv', dv, { at: game.W, text: `Your line W = ${game.W}` });
+  paintMeter('m-rel', hand.rel, { at: lv.persona.minRel, text: `Needs ${lv.persona.minRel}+` });
+  paintMeter('m-rep', game.rep);
+
+  // Play move: needs a card, a legal offer and an offer at or above the line.
+  let offerMsg = '';
+  let hint = '';
+  if (!final && !asking) {
+    const o = isOfferLegal(d.offer, prev, hand.turnNumber);
+    if (!o.legal) offerMsg = o.reason;
+    else if (below) offerMsg = `This offer is below your line (${fmtNum(dv)} is less than ${game.W}).`;
+  }
+  if (!d.line) hint = 'Pick a card to say something.';
+  $('#offer-msg').textContent = offerMsg;
+  $('#play-hint').textContent = hint;
+  $('#play').disabled = !d.line || offerMsg !== '';
+
+  const counter = hand.opponentCounterPkg;
+  $('#accept').disabled = !counter;
+  const counterDV = counter ? computeDV(lv, counter) : null;
+  $('#their-offer').textContent = counter
+    ? `Their offer on the table: ${describePackage(lv, counter)} (worth ${fmtNum(counterDV)} to you${counterDV + eps < game.W ? ', below your line' : ''}).`
+    : 'They have no offer on the table yet.';
+
+  // Intel and opponent header.
+  $('#intel-body').innerHTML = hand.revealedTerms.length
+    ? '<ol>' + hand.revealedTerms.map((t, i) => `<li>Their #${i + 1}: ${esc(t)}</li>`).join('') + '</ol>'
+    : '<p class="muted">Nothing yet. Ask a question to learn what they care about most.</p>';
+  const last = hand.log[hand.log.length - 1];
+  const face = getReactionFace(last ? last.relDelta : 0);
+  $('#opp-face').textContent = face.face;
+  $('#opp-caption').textContent = face.caption;
+  $('#turn-count').textContent = `Turn ${Math.min(hand.turnNumber, lv.persona.maxTurns)} of ${lv.persona.maxTurns}`;
+}
+
+function onSliderInput(input) {
+  const d = game.draft;
+  d.offer[parseInt(input.dataset.term, 10)] = parseInt(input.value, 10);
+  updateTableControls();
+}
+function selectCard(key) {
+  const d = game.draft;
+  d.line = d.line === key ? null : key;
+  updateTableControls();
+}
+
+function playMove() {
+  const lv = curLevel();
+  const prev = game.hand;
+  const d = game.draft;
+  if (!d.line) return;
+  const asking = d.line === 'askQuestion';
+  const offer = asking ? (prev.previousOwnOfferPkg ? prev.previousOwnOfferPkg.slice() : null) : d.offer.slice();
+  let next;
+  try {
+    next = playTurn(prev, { offerPkg: offer, line: d.line, tone: d.tone, expression: d.expression });
+  } catch (err) {
+    $('#play-hint').textContent = err.message;
+    return;
+  }
+  const entry = next.log[next.log.length - 1];
+  const face = getReactionFace(entry.relDelta);
+  const tags = `<span class="tag">${UI_TEXT.lines[d.line].icon} ${UI_TEXT.lines[d.line].name}</span><span class="tag">${UI_TEXT.tones.find((t) => t.key === d.tone).name}</span><span class="tag">${UI_TEXT.expressions.find((x) => x.key === d.expression).name}</span>`;
+  const offerLine = asking && !offer ? 'No offer yet.' : `${asking ? 'Offer stays' : 'Offer'}: ${describePackage(lv, offer)}`;
+  addChat('you', `<div>${tags}</div><p>“${esc(lv.playerLines[d.line])}”</p><p class="muted">${esc(offerLine)}</p>`);
+
+  const special = entry.response === 'walkout' ? 'walkedOut'
+    : entry.bluffCaught ? 'bluffCaught'
+    : entry.response === 'accept' ? 'accepting'
+    : next.isFinalOffer ? 'finalOffer' : 'countering';
+  const spoken = [
+    getOpponentLine({ personaKey: lv.personaKey, relChangeBucket: face.bucket }),
+    getOpponentLine({ personaKey: lv.personaKey, special }),
+  ];
+  let words = '';
+  if (entry.response === 'counter') words = `<p class="muted">${next.isFinalOffer ? 'Final offer: ' : 'Their offer: '}${esc(describePackage(lv, entry.counterPkg))}</p>`;
+  else if (entry.response === 'accept') words = `<p class="muted">They accept: ${esc(describePackage(lv, next.agreedPkg))}</p>`;
+  else words = '<p class="muted">🚪 They leave the table.</p>';
+  const tip = getCoachTip({
+    personaKey: lv.personaKey, turnNumber: entry.turn, line: d.line, lastLine: prev.lastLine, tone: d.tone,
+    expression: d.expression, anchorResult: entry.anchorResult, bluffCaught: entry.bluffCaught,
+    skipTimeConcession: entry.skipTimeConcession, asksSoFar: next.asksSoFar, relDelta: entry.relDelta,
+    offerPkg: entry.offerPkg, previousOwnOfferPkg: prev.previousOwnOfferPkg, levelConfig: lv,
+  });
+  const oppHTML = oppMsgHTML(face, spoken, words);
+  const coachHTML = `🎓 <strong>Coach:</strong> ${esc(tip)}`;
+  addChat('opp', oppHTML);
+  addChat('coach', coachHTML);
+  game.lastReplyHTML = `<div class="msg opp">${oppHTML}</div><div class="msg coach">${coachHTML}</div>`;
+
+  game.hand = next;
+  if (next.ended) { finishLevel(null); return; }
+  game.draft = makeDraft(lv, next);
+  updateTableControls();
+  showRelDelta(entry.relDelta);
+  const target = next.isFinalOffer ? $('#accept') : ($('.tcard:not(:disabled)') || $('#accept'));
+  if (target) target.focus();
+}
+
+// Modal confirmation built on <dialog>; falls back to window.confirm when dialogs are unsupported.
+let pendingConfirm = null;
+function confirmDialog(message, okLabel, onOk) {
+  const dlg = $('#confirm');
+  if (!dlg || typeof dlg.showModal !== 'function') { if (window.confirm(message)) onOk(); return; }
+  $('#confirm-msg').textContent = message;
+  $('#confirm-ok').textContent = okLabel;
+  pendingConfirm = onOk;
+  dlg.returnValue = '';
+  dlg.showModal();
+}
+function acceptOffer() {
+  const hand = game.hand;
+  if (!hand.opponentCounterPkg) return;
+  const dv = computeDV(curLevel(), hand.opponentCounterPkg);
+  if (dv + CONFIG.rules.dvEpsilon < game.W) {
+    confirmDialog('This is below your line. Fold to save the deal?', 'Fold and accept', () => finishLevel('foldConfirmed'));
+  } else {
+    finishLevel('accept');
+  }
+}
+function walkAway() {
+  confirmDialog('Walk away from the table?', 'Walk away', () => finishLevel('walk'));
+}
+
+// ---- end of level: apply Rep and score once, then show the debrief ----
+function finishLevel(action) {
+  if (game.result) return;
+  const hand = game.hand;
+  const res = determineEnding(hand, hand.ended ? null : action);
+  const rep = updateReputation(game.rep, { ending: res.ending, finalRel: res.rel, bluffsCaughtThisLevel: hand.bluffsCaughtThisLevel });
+  const score = computeLevelScore(res.ending, res.dv, res.rel, game.W);
+  game.result = Object.assign({}, res, { score, repBefore: game.rep, repAfter: rep.rep, repChanges: rep.changes });
+  game.rep = rep.rep;
+  game.levelScores[game.levelIndex] = score;
+  game.cleared[game.levelIndex] = res.cleared;
+  renderDebrief();
+}
+
+// ---- 5. Debrief ----
+// Cumulative end-of-level tips (spec: "built from the hand's statistics"); per-move coaching stays in getCoachTip.
+function getDebriefTips(hand) {
+  const count = (line) => hand.log.filter((e) => e.line === line).length;
+  const concedes = count('concede');
+  const trades = count('trade');
+  const holds = count('holdFirm');
+  const candidates = [
+    [concedes >= CONFIG.ui.concedeTipMin && trades === 0, `You made ${concedes} concessions and never traded. Next time, ask for something back whenever you give something up.`],
+    [hand.asksSoFar === 0, 'You never asked a question, so you played blind. One early question shows which term they care about most.'],
+    [hand.bluffsCaughtThisLevel > 0, 'A caught bluff costs trust now and reputation later. Bluff rarely, and not against someone who reads you well.'],
+    [holds >= CONFIG.ui.holdFirmTipMin, `You held firm on ${holds} turns. That builds pressure but wears down the relationship, so mix in a Trade.`],
+    [trades >= 1, `You made ${trades} trade${trades === 1 ? '' : 's'}. Giving what you value less for what you value more is the heart of the game.`],
+    [true, 'Look for terms where your weights differ from theirs. That is where both sides can gain.'],
+    [true, 'Check the relationship meter after every move. A good deal on paper still fails if the relationship drops too far.'],
+  ];
+  return candidates.filter((c) => c[0]).slice(0, CONFIG.ui.maxTips).map((c) => c[1]);
+}
+
+function renderDebrief() {
+  game.screen = 'debrief';
+  const lv = curLevel();
+  const hand = game.hand;
+  const r = game.result;
+  const isFold = r.ending === 'foldCleared' || r.ending === 'foldFailed';
+  const needRel = lv.persona.minRel + (isFold ? CONFIG.rules.fold.relBonus : 0);
+  const repRows = r.repChanges.length
+    ? r.repChanges.map((c) => `<li>${esc(c.reason)}: ${fmtDelta(c.delta)}</li>`).join('')
+    : '<li>No change</li>';
+  let left = 'none';
+  if (r.dv != null) {
+    const best = bestAcceptableDV(hand);
+    if (best != null && best - r.dv > 0) left = fmtNum(best - r.dv) + ' points of deal value';
+  }
+  const timeline = hand.log.map((e) => `<tr><td>${e.turn}</td><td>${UI_TEXT.lines[e.line].name}</td><td>${UI_TEXT.tones.find((t) => t.key === e.tone).name}</td><td>${UI_TEXT.expressions.find((x) => x.key === e.expression).name}</td><td>${fmtDelta(e.relDelta)}</td></tr>`).join('');
+  const hasNext = r.cleared && game.levelIndex + 1 < CONFIG.levels.length;
+  show(`
+    <h1 id="screen-heading" tabindex="-1">${suitHTML(lv.suit)} Debrief</h1>
+    <section class="panel">
+      <h2>${esc(UI_TEXT.endings[r.ending])}</h2>
+      <ul>
+        <li>Final package: ${r.finalPkg ? esc(describePackage(lv, r.finalPkg)) : 'no deal'}</li>
+        <li>Deal value: ${r.dv == null ? '—' : fmtNum(r.dv)} against your line of ${game.W}</li>
+        <li>Relationship: ${fmtNum(r.rel)} against ${needRel} needed${isFold ? ' (includes the fold bonus)' : ''}</li>
+        <li>Reputation: ${fmtNum(r.repBefore)} → ${fmtNum(r.repAfter)}<ul>${repRows}</ul></li>
+        <li>Level score: <strong>${fmtNum(r.score)}</strong></li>
+        <li>Points left on the table: ${left}</li>
+      </ul>
+    </section>
+    <section class="panel">
+      <h2>Turn by turn</h2>
+      <div class="tablewrap" tabindex="0" role="region" aria-label="Turn timeline"><table><thead><tr><th>Turn</th><th>Line</th><th>Tone</th><th>Expression</th><th>Rel change</th></tr></thead><tbody>${timeline || '<tr><td colspan="5">No turns were played.</td></tr>'}</tbody></table></div>
+    </section>
+    <section class="panel"><h2>For next time</h2><ul class="tips">${getDebriefTips(hand).map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>
+    ${game.lastReplyHTML ? `<section class="panel"><h2>Last exchange</h2><div class="chat" style="max-height:none">${game.lastReplyHTML}</div></section>` : ''}
+    <div class="row">
+      <button class="btn" data-act="retry">Retry</button>
+      ${hasNext ? '<button class="btn" data-act="next">Next level</button>' : ''}
+      <button class="btn secondary" data-act="menu">Menu</button>
+      <button class="btn secondary" data-act="final">Final score</button>
+    </div>`, lv.suit);
+}
+
+// ---- 6. Final score ----
+function renderFinal() {
+  game.screen = 'final';
+  const anyCleared = game.cleared.some(Boolean);
+  const total = computeFinalScore(game.levelScores, game.rep);
+  const stored = readHighScore();
+  let isNew = false;
+  if (anyCleared && (stored == null || total > stored)) { isNew = true; writeHighScore(total); }
+  game.highScore = isNew ? total : stored;
+  const rows = CONFIG.levels.map((lv, i) => `<tr><th scope="row">${suitHTML(lv.suit)} ${esc(lv.name)}</th><td>${game.cleared[i] ? 'cleared' : 'not cleared'}</td><td>${fmtNum(game.levelScores[i])}</td></tr>`).join('');
+  show(`
+    <h1 id="screen-heading" tabindex="-1">Final score</h1>
+    <section class="panel">
+      <table><thead><tr><th>Level</th><th>Result</th><th>Score</th></tr></thead><tbody>${rows}
+        <tr><th scope="row">Reputation ${fmtNum(game.rep)} × ${CONFIG.rules.score.repFinal}</th><td></td><td>${fmtNum(CONFIG.rules.score.repFinal * game.rep)}</td></tr>
+        <tr><th scope="row">Total</th><td></td><td><strong>${fmtNum(total)}</strong></td></tr></tbody></table>
+      <p>High score: <strong>${game.highScore == null ? '—' : game.highScore}</strong>${isNew ? ' 🏆 New high score!' : ''}</p>
+      ${anyCleared ? '' : '<p class="muted">Clear a level to record a high score.</p>'}
+      <div class="row"><button class="btn" data-act="again">Play again</button><button class="btn secondary" data-act="menu">Menu</button></div>
+    </section>`, '♠');
+}
+
+// ---- wiring ----
+const ACTIONS = {
+  level: (b) => { game.levelIndex = parseInt(b.dataset.level, 10); game.repBeforeAttempt = game.rep; renderBriefing(); },
+  final: () => renderFinal(),
+  menu: () => renderTitle(),
+  begin: () => renderSetLine(),
+  'begin-back': () => renderBriefing(),
+  lock: () => startHand(),
+  card: (b) => selectCard(b.dataset.key),
+  tone: (b) => { game.draft.tone = b.dataset.key; updateTableControls(); },
+  expr: (b) => { game.draft.expression = b.dataset.key; updateTableControls(); },
+  play: () => playMove(),
+  accept: () => acceptOffer(),
+  walk: () => walkAway(),
+  retry: () => {
+    game.rep = game.repBeforeAttempt;
+    game.levelScores[game.levelIndex] = 0;
+    game.cleared[game.levelIndex] = false;
+    renderBriefing();
+  },
+  next: () => { game.levelIndex += 1; game.repBeforeAttempt = game.rep; renderBriefing(); },
+  again: () => { Object.assign(game, createGame(game.highScore)); renderTitle(); },
+};
+
+function initUI() {
+  game.highScore = readHighScore();
+  const app = $('#app');
+  app.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (b && !b.disabled && ACTIONS[b.dataset.act]) ACTIONS[b.dataset.act](b);
+  });
+  app.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.id === 'line-range') {
+      $('#line-out').textContent = t.value;
+      $('#line-bonus').textContent = `Line bonus if you clear without folding: ${CONFIG.rules.score.line * parseInt(t.value, 10)} points.`;
+    } else if (t.dataset && t.dataset.term !== undefined) {
+      onSliderInput(t);
+    }
+  });
+  $('#confirm').addEventListener('close', () => {
+    const ok = $('#confirm').returnValue === 'ok';
+    const fn = pendingConfirm;
+    pendingConfirm = null;
+    if (ok && fn) fn();
+  });
+  renderTitle();
+}
+if (typeof document !== 'undefined') { document.addEventListener('DOMContentLoaded', initUI); }
 
 // ---- end of game logic ----
 if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter, classifyOfferChange, isOfferLegal, isLineLegal, applyMoveEffects, createInitialHandState, playTurn, determineEnding, computeLevelScore, updateReputation, computeFinalScore, bestAcceptableDV, runSelfTest, termDirections, getReactionFace, relChangeBucket, repBand, getOpponentLine, getCoachTip }; }
