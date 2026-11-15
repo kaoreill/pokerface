@@ -7,7 +7,7 @@ function loadGame() {
   if (!match) throw new Error('index.html has no <script> block');
   const tmpDir = path.join(__dirname, '..', '.tmp');
   fs.mkdirSync(tmpDir, { recursive: true });
-  const file = path.join(tmpDir, 'game.js');
+  const file = path.join(tmpDir, `game-${process.pid}.js`);
   fs.writeFileSync(file, match[1]);
   delete require.cache[require.resolve(file)];
   return require(file);

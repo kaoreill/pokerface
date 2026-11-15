@@ -153,8 +153,37 @@ function packageDistance(pkgA, pkgB) {
   return total;
 }
 
+function computeAcceptanceThreshold(persona, timeSteps, pressure, rel) {
+  const A = Math.max(persona.Ro, persona.A0 - persona.c * timeSteps - pressure);
+  const Aeff = Math.max(persona.Ro - 5, A - 0.15 * (rel - 50));
+  return { A, Aeff };
+}
+
+function resolveBluffChance(persona, rep, pressureCountThisLevel) {
+  const chance = persona.bluffDetection + (rep < 40 ? 0.15 : 0) + 0.20 * pressureCountThisLevel;
+  return Math.max(0, Math.min(0.95, chance));
+}
+
+function pickOpponentCounter(levelConfig, playerOfferPkg, aeff, previousCounterOV) {
+  let target = aeff + 3;
+  if (previousCounterOV != null) target = Math.min(target, previousCounterOV);
+  let best = null;
+  let fallback = null;
+  for (const pkg of enumeratePackages(levelConfig)) {
+    const ov = computeOV(levelConfig, pkg);
+    if (fallback === null || ov > fallback.ov) fallback = { pkg, ov };
+    if (ov < target) continue;
+    const dist = packageDistance(pkg, playerOfferPkg);
+    const dv = computeDV(levelConfig, pkg);
+    if (best === null || dist < best.dist || (dist === best.dist && dv > best.dv)) best = { pkg, ov, dist, dv };
+  }
+  // A very low cap can leave no package at or above target; take the highest-OV package.
+  const chosen = best || fallback;
+  return { pkg: chosen.pkg, ov: chosen.ov };
+}
+
 // ---- end of game logic ----
-if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance }; }
+if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter }; }
 </script>
 </body>
 </html>
