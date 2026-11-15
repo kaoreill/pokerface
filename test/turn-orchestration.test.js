@@ -123,6 +123,12 @@ test('an offer with DV below W is rejected', () => {
   assert.throws(() => game.playTurn(state, move('anchor', { offerPkg: [12, 10] })), /below your line/);
 });
 
+test('an offer whose DV is a float hair under W is allowed', () => {
+  const { game, level, state } = setup({ W: 65 });
+  assert.ok(game.computeDV(level, [6, 0]) < 65);
+  assert.doesNotThrow(() => game.playTurn(state, move('anchor', { offerPkg: [6, 0] })));
+});
+
 test('an illegal line is rejected with its reason', () => {
   const { game, state } = setup();
   assert.throws(() => game.playTurn(state, move('trade')), /Trade needs an earlier offer/);

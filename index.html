@@ -403,7 +403,7 @@ function playTurn(handState, move, rng = Math.random) {
   if (!isAsk) {
     const offerCheck = isOfferLegal(offer, handState.previousOwnOfferPkg, handState.turnNumber);
     if (!offerCheck.legal) throw new Error(offerCheck.reason);
-    if (offerDV < W) throw new Error('This offer is below your line.');
+    if (offerDV + CONFIG.rules.dvEpsilon < W) throw new Error('This offer is below your line.');
   }
 
   const effects = applyMoveEffects(line, tone, expression, persona, ctx);
