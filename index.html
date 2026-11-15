@@ -114,6 +114,14 @@ const CONFIG = {
     concede: { rel: 2 },
     pressureLine: { success: 8, caughtRel: -15, caughtPressure: -5 },
     walkoutRel: 15,
+    dvEpsilon: 1e-9,
+    fold: { relBonus: 10 },
+    score: { dv: 5, rel: 3, line: 2, repFinal: 5 },
+    reputation: {
+      start: 50, clearedHighRel: 70, clearedHighDelta: 10, clearedLowDelta: 5, foldDelta: 3,
+      lowRelThreshold: 40, lowRelDelta: -10, bluffCaughtDelta: -10,
+      walkRelThreshold: 50, walkHighDelta: 5, walkLowDelta: -5,
+    },
     relMin: 0,
     relMax: 100,
     tones: {
@@ -493,8 +501,90 @@ function playTurn(handState, move, rng = Math.random) {
   return finish('counter');
 }
 
+function determineEnding(handState, playerAction) {
+  const { levelConfig, W, rel } = handState;
+  const minRel = levelConfig.persona.minRel;
+  const meetsLine = (dv) => dv + CONFIG.rules.dvEpsilon >= W;
+  const failed = (ending, finalPkg = null, dv = null, finalRel = rel) => ({ ending, cleared: false, finalPkg, dv, rel: finalRel });
+
+  const dealOutcome = (finalPkg) => {
+    const dv = computeDV(levelConfig, finalPkg);
+    const cleared = rel >= minRel;
+    return { ending: cleared ? 'deal' : 'wonLostRelationship', cleared, finalPkg, dv, rel };
+  };
+
+  if (playerAction === null) {
+    if (handState.endingType === 'deal') return dealOutcome(handState.agreedPkg);
+    if (handState.endingType === 'opponentWalk') return failed('opponentWalk');
+    throw new Error('The hand has not ended.');
+  }
+  if (playerAction === 'walk') return failed('walk');
+
+  if (playerAction === 'accept' || playerAction === 'foldConfirmed') {
+    const pkg = handState.opponentCounterPkg;
+    if (pkg === null) throw new Error('There is no opponent offer on the table.');
+    const dv = computeDV(levelConfig, pkg);
+    if (playerAction === 'accept') {
+      if (!meetsLine(dv)) throw new Error('Below your line — confirm the fold first.');
+      return dealOutcome(pkg);
+    }
+    if (meetsLine(dv)) throw new Error('Folding only applies to an offer below your line.');
+    const bonus = CONFIG.rules.fold.relBonus;
+    const finalRel = clampRel(rel + bonus);
+    const cleared = finalRel >= minRel + bonus;
+    return { ending: cleared ? 'foldCleared' : 'foldFailed', cleared, finalPkg: pkg, dv, rel: finalRel };
+  }
+  throw new Error('Unknown player action: ' + playerAction);
+}
+
+function computeLevelScore(ending, dv, rel, W) {
+  if (ending !== 'deal' && ending !== 'foldCleared') return 0;
+  const s = CONFIG.rules.score;
+  return s.dv * dv + s.rel * rel + (ending === 'foldCleared' ? 0 : s.line * W);
+}
+
+function updateReputation(rep, { ending, finalRel, bluffsCaughtThisLevel }) {
+  const r = CONFIG.rules.reputation;
+  const changes = [];
+  if (ending === 'deal') {
+    if (finalRel >= r.clearedHighRel) changes.push({ reason: 'Cleared with a strong relationship', delta: r.clearedHighDelta });
+    else changes.push({ reason: 'Cleared the level', delta: r.clearedLowDelta });
+  } else if (ending === 'foldCleared') {
+    changes.push({ reason: 'Cleared by folding', delta: r.foldDelta });
+  }
+  if (finalRel < r.lowRelThreshold) changes.push({ reason: 'Relationship ended badly', delta: r.lowRelDelta });
+  if (bluffsCaughtThisLevel > 0) {
+    changes.push({
+      reason: bluffsCaughtThisLevel === 1 ? 'Bluff caught' : `${bluffsCaughtThisLevel} bluffs caught`,
+      delta: r.bluffCaughtDelta * bluffsCaughtThisLevel,
+    });
+  }
+  if (ending === 'walk') {
+    if (finalRel >= r.walkRelThreshold) changes.push({ reason: 'Walked away on good terms', delta: r.walkHighDelta });
+    else changes.push({ reason: 'Walked away on bad terms', delta: r.walkLowDelta });
+  }
+  const total = changes.reduce((sum, c) => sum + c.delta, rep);
+  return { rep: Math.max(0, Math.min(100, total)), changes };
+}
+
+function computeFinalScore(levelScores, rep) {
+  return levelScores.reduce((sum, s) => sum + s, 0) + CONFIG.rules.score.repFinal * rep;
+}
+
+function bestAcceptableDV(handState) {
+  const { levelConfig, timeSteps, pressure, rel } = handState;
+  const { Aeff } = computeAcceptanceThreshold(levelConfig.persona, timeSteps, pressure, rel);
+  let best = null;
+  for (const pkg of enumeratePackages(levelConfig)) {
+    if (computeOV(levelConfig, pkg) < Aeff) continue;
+    const dv = computeDV(levelConfig, pkg);
+    if (best === null || dv > best) best = dv;
+  }
+  return best;
+}
+
 // ---- end of game logic ----
-if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter, classifyOfferChange, isOfferLegal, isLineLegal, applyMoveEffects, createInitialHandState, playTurn }; }
+if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter, classifyOfferChange, isOfferLegal, isLineLegal, applyMoveEffects, createInitialHandState, playTurn, determineEnding, computeLevelScore, updateReputation, computeFinalScore, bestAcceptableDV }; }
 </script>
 </body>
 </html>
