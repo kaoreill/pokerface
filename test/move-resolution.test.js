@@ -161,6 +161,30 @@ test('Anchor below 75 has no effect and is weak', () => {
   assert.strictEqual(e.anchorResult, 'weak');
 });
 
+test('Anchor: a real package a hair under the strong boundary still counts as strong', () => {
+  const { CONFIG, computeDV } = loadGame();
+  const level = CONFIG.levels[2];
+  const dv = computeDV(level, [0, 4, 0, 1, 1]);
+  assert.ok(dv < 75 && dv > 75 - 1e-9);
+  assert.strictEqual(effects('anchor', 'neutral', 'pokerFace', 'victoria', { turnNumber: 1, offerDV: dv }).anchorResult, 'strong');
+  assert.strictEqual(effects('anchor', 'neutral', 'pokerFace', 'maya', { turnNumber: 1, offerDV: 75 - 1e-12 }).anchorResult, 'strong');
+});
+
+test('Anchor: a hair above the insulting boundary is still strong', () => {
+  const e = effects('anchor', 'neutral', 'pokerFace', 'maya', { turnNumber: 1, offerDV: 90 + 1e-12 });
+  assert.strictEqual(e.anchorResult, 'strong');
+  assert.strictEqual(effects('anchor', 'neutral', 'pokerFace', 'maya', { turnNumber: 1, offerDV: 90.1 }).anchorResult, 'insulting');
+});
+
+test('Open: a real package a hair under W + roomMargin still skips the time concession', () => {
+  const { CONFIG, computeDV } = loadGame();
+  const dv = computeDV(CONFIG.levels[0], [6, 0]);
+  assert.ok(dv < 65 && dv > 65 - 1e-9);
+  const e = effects('trade', 'neutral', 'open', 'maya', { offerDV: dv, W: 50 });
+  assert.strictEqual(e.skipTimeConcession, true);
+  assert.strictEqual(effects('trade', 'neutral', 'open', 'maya', { offerDV: 64.9, W: 50 }).skipTimeConcession, false);
+});
+
 test('anchorResult is null for other lines', () => {
   const e = effects('holdFirm', 'neutral', 'pokerFace', 'victoria');
   assert.strictEqual(e.anchorResult, null);

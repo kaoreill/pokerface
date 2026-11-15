@@ -379,7 +379,7 @@ const CONFIG = {
           ],
           finalOffer: [
             "This is my final offer. My board has given me no further room, and I won't pretend otherwise. Accept it or we walk away.",
-            "That is as far as I'm authorised to go. It's final: take it, or this conversation ends.",
+            "That is as far as I'm authorized to go. It's final: take it, or this conversation ends.",
           ],
           bluffCaught: [
             "I know a bluff when I hear one. There's no other bidder, and I'll weigh everything else you tell me a great deal more carefully now.",
@@ -446,6 +446,13 @@ const CONFIG = {
     },
     relMin: 0,
     relMax: 100,
+    repMin: 0,
+    repMax: 100,
+    openingTurn: 2,
+    opponent: { relCoeff: 0.15, relMidpoint: 50, floorMargin: 5, counterMargin: 3 },
+    bluff: { lowRepBelow: 40, lowRepBonus: 0.15, perPressure: 0.20, cap: 0.95 },
+    maxLine: { margin: 5, cap: 70 },
+    selfTest: { minDV: 50, minMaxLine: 40 },
     repBands: { respectful: 65, neutral: 35 },
     reactions: [
       { min: 4, face: '😄', caption: 'leans in, nodding', bucket: '+4' },
@@ -498,12 +505,13 @@ function enumeratePackages(levelConfig) {
 }
 
 function computeMaxLine(levelConfig) {
-  const floor = levelConfig.persona.Ro - 5;
+  const rules = CONFIG.rules;
+  const floor = levelConfig.persona.Ro - rules.opponent.floorMargin;
   let best = -Infinity;
   for (const pkg of enumeratePackages(levelConfig)) {
     if (computeOV(levelConfig, pkg) >= floor) best = Math.max(best, computeDV(levelConfig, pkg));
   }
-  return Math.floor(Math.min(best - 5, 70));
+  return Math.floor(Math.min(best - rules.maxLine.margin, rules.maxLine.cap));
 }
 
 function packageDistance(pkgA, pkgB) {
@@ -514,17 +522,19 @@ function packageDistance(pkgA, pkgB) {
 
 function computeAcceptanceThreshold(persona, timeSteps, pressure, rel) {
   const A = Math.max(persona.Ro, persona.A0 - persona.c * timeSteps - pressure);
-  const Aeff = Math.max(persona.Ro - 5, A - 0.15 * (rel - 50));
+  const o = CONFIG.rules.opponent;
+  const Aeff = Math.max(persona.Ro - o.floorMargin, A - o.relCoeff * (rel - o.relMidpoint));
   return { A, Aeff };
 }
 
 function resolveBluffChance(persona, rep, pressureCountThisLevel) {
-  const chance = persona.bluffDetection + (rep < 40 ? 0.15 : 0) + 0.20 * pressureCountThisLevel;
-  return Math.max(0, Math.min(0.95, chance));
+  const b = CONFIG.rules.bluff;
+  const chance = persona.bluffDetection + (rep < b.lowRepBelow ? b.lowRepBonus : 0) + b.perPressure * pressureCountThisLevel;
+  return Math.max(0, Math.min(b.cap, chance));
 }
 
 function pickOpponentCounter(levelConfig, playerOfferPkg, aeff, previousCounterOV) {
-  let target = aeff + 3;
+  let target = aeff + CONFIG.rules.opponent.counterMargin;
   if (previousCounterOV != null) target = Math.min(target, previousCounterOV);
   let best = null;
   let fallback = null;
@@ -552,7 +562,7 @@ function classifyOfferChange(offerPkg, previousOwnOfferPkg) {
 }
 
 function isOfferLegal(offerPkg, previousOwnOfferPkg, turnNumber) {
-  if (turnNumber < 2 || !previousOwnOfferPkg) return { legal: true, reason: null };
+  if (turnNumber < CONFIG.rules.openingTurn || !previousOwnOfferPkg) return { legal: true, reason: null };
   const { towardOpponent, towardPlayer } = classifyOfferChange(offerPkg, previousOwnOfferPkg);
   if (towardPlayer >= 1 && towardOpponent === 0) {
     return { legal: false, reason: "You can't take back what you already offered." };
@@ -571,25 +581,25 @@ function isLineLegal(line, moveCtx) {
     case 'askQuestion':
       return asksSoFar < termCount ? yes : no('You have already asked about every term.');
     case 'trade': {
-      if (turnNumber < 2) return no('Trade needs an earlier offer to compare with.');
+      if (turnNumber < CONFIG.rules.openingTurn) return no('Trade needs an earlier offer to compare with.');
       if (!previousOwnOfferPkg) return no('Make an opening offer first.');
       const { towardOpponent, towardPlayer } = change();
       return towardOpponent >= 1 && towardPlayer >= 1 ? yes : no('Move at least one term toward them and one toward you.');
     }
     case 'holdFirm': {
-      if (turnNumber < 2) return no('Hold firm needs an earlier offer to hold.');
+      if (turnNumber < CONFIG.rules.openingTurn) return no('Hold firm needs an earlier offer to hold.');
       if (!previousOwnOfferPkg) return no('Make an opening offer first.');
       const { towardOpponent, towardPlayer } = change();
       return towardOpponent === 0 && towardPlayer === 0 ? yes : no('Your offer must match your previous offer.');
     }
     case 'concede': {
-      if (turnNumber < 2) return no('Concede needs an earlier offer to move from.');
+      if (turnNumber < CONFIG.rules.openingTurn) return no('Concede needs an earlier offer to move from.');
       if (!previousOwnOfferPkg) return no('Make an opening offer first.');
       const { towardOpponent, towardPlayer } = change();
       return towardOpponent >= 1 && towardPlayer === 0 ? yes : no('Move at least one term toward them and none toward you.');
     }
     case 'pressure':
-      return turnNumber >= 2 ? yes : no('Pressure only works from the second turn.');
+      return turnNumber >= CONFIG.rules.openingTurn ? yes : no('Pressure only works from the second turn.');
     default:
       return no('Unknown line.');
   }
@@ -607,10 +617,11 @@ function applyMoveEffects(line, tone, expression, persona, moveCtx) {
 
   if (line === 'anchor') {
     const r = rules.anchor;
-    if (moveCtx.offerDV > r.strongMax) {
+    const eps = rules.dvEpsilon;
+    if (moveCtx.offerDV > r.strongMax + eps) {
       relDelta += r.insultingRel;
       anchorResult = 'insulting';
-    } else if (moveCtx.offerDV >= r.strongMin) {
+    } else if (moveCtx.offerDV + eps >= r.strongMin) {
       pressureDelta += r.strongPressure;
       relDelta += r.strongRel;
       anchorResult = 'strong';
@@ -641,7 +652,7 @@ function applyMoveEffects(line, tone, expression, persona, moveCtx) {
   if (expression === 'open') {
     const r = rules.expression.open;
     relDelta += r.rel;
-    if (moveCtx.offerDV != null && moveCtx.offerDV >= moveCtx.W + r.roomMargin) skipTimeConcession = true;
+    if (moveCtx.offerDV != null && moveCtx.offerDV + rules.dvEpsilon >= moveCtx.W + r.roomMargin) skipTimeConcession = true;
   } else if (expression === 'pokerFace') {
     const r = rules.expression.pokerFace;
     if (moveCtx.pokerFaceStreak + 1 >= r.streakFrom) relDelta += r.streakRel;
@@ -875,6 +886,7 @@ function computeLevelScore(ending, dv, rel, W) {
 
 function updateReputation(rep, { ending, finalRel, bluffsCaughtThisLevel }) {
   const r = CONFIG.rules.reputation;
+  const { repMin, repMax } = CONFIG.rules;
   const changes = [];
   if (ending === 'deal') {
     if (finalRel >= r.clearedHighRel) changes.push({ reason: 'Cleared with a strong relationship', delta: r.clearedHighDelta });
@@ -894,7 +906,7 @@ function updateReputation(rep, { ending, finalRel, bluffsCaughtThisLevel }) {
     else changes.push({ reason: 'Walked away on bad terms', delta: r.walkLowDelta });
   }
   const total = changes.reduce((sum, c) => sum + c.delta, rep);
-  return { rep: Math.max(0, Math.min(100, total)), changes };
+  return { rep: Math.max(repMin, Math.min(repMax, total)), changes };
 }
 
 function computeFinalScore(levelScores, rep) {
@@ -926,15 +938,15 @@ function selfTestLevel(levelConfig) {
     detail: `player ${playerSum}, opponent ${opponentSum}`,
   });
 
-  const viable = packages.filter((pkg) => computeOV(levelConfig, pkg) >= persona.Ro && computeDV(levelConfig, pkg) >= 50);
+  const viable = packages.filter((pkg) => computeOV(levelConfig, pkg) >= persona.Ro && computeDV(levelConfig, pkg) >= CONFIG.rules.selfTest.minDV);
   checks.push({
-    name: 'a package has OV >= Ro and DV >= 50',
+    name: `a package has OV >= Ro and DV >= ${CONFIG.rules.selfTest.minDV}`,
     pass: viable.length > 0,
     detail: `${viable.length} of ${packages.length} packages qualify (Ro ${persona.Ro})`,
   });
 
   const maxLine = computeMaxLine(levelConfig);
-  checks.push({ name: 'maxLine >= 40', pass: maxLine >= 40, detail: `maxLine ${maxLine}` });
+  checks.push({ name: `maxLine >= ${CONFIG.rules.selfTest.minMaxLine}`, pass: maxLine >= CONFIG.rules.selfTest.minMaxLine, detail: `maxLine ${maxLine}` });
 
   let offer = null;
   let offerGap = Infinity;
@@ -1109,6 +1121,12 @@ const UI_TEXT = {
     { key: 'open', icon: '🙂', name: 'Open' },
     { key: 'pokerFace', icon: '😐', name: 'Poker face' },
   ],
+  hints: {
+    pokerFace: (streak, rel) => `Poker face ×${streak} in a row — the next one costs Rel ${fmtDelta(rel)} (hard to trust).`,
+    holdFirm: (streak, rel) => `Hold firm ×${streak} in a row — the next one costs an extra Rel ${fmtDelta(rel)}.`,
+    intel: (term, rank) => (rank === 1 ? `Intel: they care most about ${term}.` : `Intel: their #${rank} priority is ${term}.`),
+    noDeal: (best) => (best == null ? 'No deal' : `No deal — they would have accepted up to DV ${fmtNum(best)}`),
+  },
   defaultTone: 'neutral',
   defaultExpression: 'pokerFace',
   endings: {
@@ -1144,7 +1162,7 @@ function repChain(upTo) {
   const r = CONFIG.rules;
   let rep = r.reputation.start;
   for (let j = 0; j < upTo; j++) {
-    if (game.repDelta[j] != null) rep = Math.max(r.relMin, Math.min(r.relMax, rep + game.repDelta[j]));
+    if (game.repDelta[j] != null) rep = Math.max(r.repMin, Math.min(r.repMax, rep + game.repDelta[j]));
   }
   return rep;
 }
@@ -1325,8 +1343,10 @@ function renderTable() {
         <section class="panel" id="moves">
           <h2>Your line</h2>
           <div class="cards">${cards}</div>
+          <p class="reason" id="hold-hint" hidden></p>
           ${toggleGroup('tone', UI_TEXT.tones, 'tone-h', 'Tone')}
           ${toggleGroup('expr', UI_TEXT.expressions, 'expr-h', 'Expression')}
+          <p class="reason" id="expr-hint" hidden></p>
         </section>
         <section class="panel" id="actions">
           <div id="final-banner" class="banner" hidden>Final offer — accept or walk away</div>
@@ -1374,7 +1394,9 @@ function showRelDelta(delta) {
   const el = $('#m-rel .delta');
   if (!el) return;
   el.textContent = `(${fmtDelta(delta)})`;
-  el.className = 'delta show ' + (delta > 0 ? 'pos' : delta < 0 ? 'neg' : '');
+  el.className = 'delta ' + (delta > 0 ? 'pos' : delta < 0 ? 'neg' : '');
+  void el.offsetWidth;
+  el.classList.add('show');
 }
 function setPressed(btn, on) { btn.setAttribute('aria-pressed', on ? 'true' : 'false'); }
 
@@ -1404,6 +1426,15 @@ function updateTableControls() {
   });
   $$('[data-act=tone]').forEach((b) => setPressed(b, d.tone === b.dataset.key));
   $$('[data-act=expr]').forEach((b) => setPressed(b, d.expression === b.dataset.key));
+  const rules = CONFIG.rules;
+  const pfRule = rules.expression.pokerFace;
+  const hfRule = rules.holdFirm;
+  const exprHint = $('#expr-hint');
+  exprHint.hidden = hand.pokerFaceStreak < pfRule.streakFrom - 1;
+  exprHint.textContent = exprHint.hidden ? '' : UI_TEXT.hints.pokerFace(hand.pokerFaceStreak, pfRule.streakRel);
+  const holdHint = $('#hold-hint');
+  holdHint.hidden = hand.holdFirmStreak < hfRule.streakFrom - 1;
+  holdHint.textContent = holdHint.hidden ? '' : UI_TEXT.hints.holdFirm(hand.holdFirmStreak, hfRule.streakRel);
 
   // Offer builder: locked to the previous offer while asking, hidden if there is none.
   const asking = d.line === 'askQuestion';
@@ -1429,10 +1460,12 @@ function updateTableControls() {
   const dvPkg = final && hand.opponentCounterPkg ? hand.opponentCounterPkg : shown;
   const dv = computeDV(lv, dvPkg);
   const below = dv + eps < game.W;
+  const hiddenDraft = asking && !prev;
+  $('#dv-read').hidden = hiddenDraft;
   $('#dv-read').textContent = `This offer is worth ${fmtNum(dv)} to you (your line: ${game.W}).`;
   $('#dv-read').classList.toggle('bad', below);
   const dvMeter = $('#m-dv');
-  dvMeter.classList.toggle('low', below);
+  dvMeter.classList.toggle('low', below && !hiddenDraft);
   paintMeter('m-dv', dv, { at: game.W, text: `Your line W = ${game.W}` });
   paintMeter('m-rel', hand.rel, { at: lv.persona.minRel, text: `Needs ${lv.persona.minRel}+` });
   paintMeter('m-rep', repAtStart(game.levelIndex));
@@ -1511,6 +1544,7 @@ function playMove() {
   if (entry.response === 'counter') words = `<p class="muted">${next.isFinalOffer ? 'Final offer: ' : 'Their offer: '}${esc(describePackage(lv, entry.counterPkg))}</p>`;
   else if (entry.response === 'accept') words = `<p class="muted">They accept: ${esc(describePackage(lv, next.agreedPkg))}</p>`;
   else words = '<p class="muted">🚪 They leave the table.</p>';
+  if (entry.revealedTerm) words += `<p class="muted">${esc(UI_TEXT.hints.intel(entry.revealedTerm, next.revealedTerms.length))}</p>`;
   const tip = getCoachTip({
     personaKey: lv.personaKey, turnNumber: entry.turn, line: d.line, lastLine: prev.lastLine, tone: d.tone,
     expression: d.expression, anchorResult: entry.anchorResult, bluffCaught: entry.bluffCaught,
@@ -1561,10 +1595,21 @@ function walkAway() {
 function finishLevel(action) {
   if (game.result) return;
   const hand = game.hand;
-  const res = determineEnding(hand, hand.ended ? null : action);
-  const repStart = repAtStart(game.levelIndex);
-  const rep = updateReputation(repStart, { ending: res.ending, finalRel: res.rel, bluffsCaughtThisLevel: hand.bluffsCaughtThisLevel });
-  const score = computeLevelScore(res.ending, res.dv, res.rel, game.W);
+  let res;
+  let repStart;
+  let rep;
+  let score;
+  try {
+    res = determineEnding(hand, hand.ended ? null : action);
+    repStart = repAtStart(game.levelIndex);
+    rep = updateReputation(repStart, { ending: res.ending, finalRel: res.rel, bluffsCaughtThisLevel: hand.bluffsCaughtThisLevel });
+    score = computeLevelScore(res.ending, res.dv, res.rel, game.W);
+  } catch (err) {
+    const status = $('#play-hint');
+    if (status) status.textContent = err.message;
+    return;
+  }
+  if (!hand.ended) game.lastReplyHTML = '';
   game.result = Object.assign({}, res, { score, repBefore: repStart, repAfter: rep.rep, repChanges: rep.changes });
   game.repDelta[game.levelIndex] = rep.rep - repStart;
   game.levelScores[game.levelIndex] = score;
@@ -1592,7 +1637,9 @@ function renderDebrief() {
     ? r.repChanges.map((c) => `<li>${esc(c.reason)}: ${fmtDelta(c.delta)}</li>`).join('')
     : '<li>No change</li>';
   let left = 'none';
-  if (r.dv != null) {
+  if (r.dv == null) {
+    left = UI_TEXT.hints.noDeal(bestAcceptableDV(hand));
+  } else {
     const best = bestAcceptableDV(hand);
     if (best != null && best - r.dv > 0) left = fmtNum(best - r.dv) + ' points of deal value';
   }
