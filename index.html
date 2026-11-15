@@ -113,6 +113,9 @@ const CONFIG = {
     holdFirm: { pressure: 2, rel: { maya: -1, jonas: -3, victoria: 0 }, streakFrom: 3, streakRel: -5 },
     concede: { rel: 2 },
     pressureLine: { success: 8, caughtRel: -15, caughtPressure: -5 },
+    walkoutRel: 15,
+    relMin: 0,
+    relMax: 100,
     tones: {
       warm: { rel: { maya: 3, jonas: 2, victoria: -1 }, pressure: 0 },
       neutral: { rel: { maya: 1, jonas: 0, victoria: 0 }, pressure: 0 },
@@ -309,8 +312,189 @@ function applyMoveEffects(line, tone, expression, persona, moveCtx) {
   return { relDelta, pressureDelta, skipTimeConcession, isBluffAttempt, tradeBonus, anchorResult };
 }
 
+function clampRel(rel) {
+  return Math.max(CONFIG.rules.relMin, Math.min(CONFIG.rules.relMax, rel));
+}
+
+function createInitialHandState(levelConfig, W, rep) {
+  return {
+    levelConfig,
+    W,
+    rep,
+    rel: clampRel(levelConfig.persona.startingRel(rep)),
+    timeSteps: 0,
+    pressure: 0,
+    turnNumber: 1,
+    log: [],
+    revealedTerms: [],
+    asksSoFar: 0,
+    pressureCountThisLevel: 0,
+    bluffsCaughtThisLevel: 0,
+    holdFirmStreak: 0,
+    pokerFaceStreak: 0,
+    lastLine: null,
+    previousOwnOfferPkg: null,
+    opponentCounterPkg: null,
+    opponentCounterOV: null,
+    isFinalOffer: false,
+    ended: false,
+    endingType: null,
+    agreedPkg: null,
+  };
+}
+
+function pickOpeningPackage(levelConfig) {
+  const target = levelConfig.persona.A0;
+  let best = null;
+  for (const pkg of enumeratePackages(levelConfig)) {
+    const ov = computeOV(levelConfig, pkg);
+    const gap = Math.abs(ov - target);
+    const dv = computeDV(levelConfig, pkg);
+    if (best === null || gap < best.gap || (gap === best.gap && dv > best.dv)) best = { pkg, ov, gap, dv };
+  }
+  return { pkg: best.pkg, ov: best.ov };
+}
+
+function pickNextTermToReveal(levelConfig, revealedTerms) {
+  let best = null;
+  for (const term of levelConfig.terms) {
+    if (revealedTerms.includes(term.name)) continue;
+    if (best === null || term.opponentWeight > best.opponentWeight) best = term;
+  }
+  return best ? best.name : null;
+}
+
+function playTurn(handState, move, rng = Math.random) {
+  const { levelConfig, W, rep } = handState;
+  const { persona } = levelConfig;
+  const rules = CONFIG.rules;
+  const { line, tone, expression } = move;
+  const isAsk = line === 'askQuestion';
+
+  if (handState.ended) throw new Error('The hand has already ended.');
+  if (handState.isFinalOffer) throw new Error('That was their final offer: accept it or walk away.');
+
+  const offer = isAsk ? handState.previousOwnOfferPkg : move.offerPkg;
+  const offerDV = offer ? computeDV(levelConfig, offer) : null;
+  const ctx = {
+    personaKey: levelConfig.personaKey,
+    turnNumber: handState.turnNumber,
+    offerPkg: offer,
+    previousOwnOfferPkg: handState.previousOwnOfferPkg,
+    offerDV,
+    W,
+    asksSoFar: handState.asksSoFar,
+    termCount: levelConfig.terms.length,
+    holdFirmStreak: handState.holdFirmStreak,
+    pokerFaceStreak: handState.pokerFaceStreak,
+    lastLine: handState.lastLine,
+  };
+
+  const lineCheck = isLineLegal(line, ctx);
+  if (!lineCheck.legal) throw new Error(lineCheck.reason);
+  if (!isAsk) {
+    const offerCheck = isOfferLegal(offer, handState.previousOwnOfferPkg, handState.turnNumber);
+    if (!offerCheck.legal) throw new Error(offerCheck.reason);
+    if (offerDV < W) throw new Error('This offer is below your line.');
+  }
+
+  const effects = applyMoveEffects(line, tone, expression, persona, ctx);
+  let relDelta = effects.relDelta;
+  let pressureDelta = effects.pressureDelta;
+  let pressureCountThisLevel = handState.pressureCountThisLevel;
+  let bluffsCaughtThisLevel = handState.bluffsCaughtThisLevel;
+  let bluffCaught = false;
+  if (effects.isBluffAttempt) {
+    const chance = resolveBluffChance(persona, rep, pressureCountThisLevel);
+    bluffCaught = rng() < chance;
+    if (bluffCaught) {
+      relDelta += rules.pressureLine.caughtRel;
+      pressureDelta += rules.pressureLine.caughtPressure;
+      bluffsCaughtThisLevel += 1;
+    } else {
+      pressureDelta += rules.pressureLine.success;
+    }
+    pressureCountThisLevel += 1;
+  }
+
+  const rel = clampRel(handState.rel + relDelta);
+  const pressure = handState.pressure + pressureDelta;
+
+  const next = {
+    ...handState,
+    rel,
+    pressure,
+    pressureCountThisLevel,
+    bluffsCaughtThisLevel,
+    log: handState.log.slice(),
+    revealedTerms: handState.revealedTerms.slice(),
+    turnNumber: handState.turnNumber + 1,
+    holdFirmStreak: line === 'holdFirm' ? handState.holdFirmStreak + 1 : 0,
+    pokerFaceStreak: expression === 'pokerFace' ? handState.pokerFaceStreak + 1 : 0,
+    lastLine: line,
+    previousOwnOfferPkg: isAsk ? handState.previousOwnOfferPkg : offer,
+  };
+  const entry = {
+    turn: handState.turnNumber,
+    line,
+    tone,
+    expression,
+    offerPkg: offer,
+    relDelta: rel - handState.rel,
+    relAfter: rel,
+    pressureDelta,
+    bluffAttempted: effects.isBluffAttempt,
+    bluffCaught,
+    anchorResult: effects.anchorResult,
+    tradeBonus: effects.tradeBonus,
+    skipTimeConcession: effects.skipTimeConcession,
+    revealedTerm: null,
+    response: null,
+    counterPkg: null,
+  };
+  const finish = (response) => {
+    entry.response = response;
+    next.log.push(entry);
+    return next;
+  };
+
+  if (rel <= rules.walkoutRel) {
+    next.ended = true;
+    next.endingType = 'opponentWalk';
+    return finish('walkout');
+  }
+
+  next.timeSteps = handState.timeSteps + (effects.skipTimeConcession ? 0 : 1);
+  const { Aeff } = computeAcceptanceThreshold(persona, next.timeSteps, pressure, rel);
+
+  let counter = null;
+  if (isAsk) {
+    const term = pickNextTermToReveal(levelConfig, next.revealedTerms);
+    next.revealedTerms.push(term);
+    next.asksSoFar = handState.asksSoFar + 1;
+    entry.revealedTerm = term;
+    if (offer === null) counter = pickOpeningPackage(levelConfig);
+  }
+
+  if (counter === null) {
+    if (computeOV(levelConfig, offer) + effects.tradeBonus >= Aeff) {
+      next.ended = true;
+      next.endingType = 'deal';
+      next.agreedPkg = offer;
+      return finish('accept');
+    }
+    counter = pickOpponentCounter(levelConfig, offer, Aeff, handState.opponentCounterOV);
+  }
+
+  next.opponentCounterPkg = counter.pkg;
+  next.opponentCounterOV = counter.ov;
+  next.isFinalOffer = handState.turnNumber === persona.maxTurns;
+  entry.counterPkg = counter.pkg;
+  return finish('counter');
+}
+
 // ---- end of game logic ----
-if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter, classifyOfferChange, isOfferLegal, isLineLegal, applyMoveEffects }; }
+if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter, classifyOfferChange, isOfferLegal, isLineLegal, applyMoveEffects, createInitialHandState, playTurn }; }
 </script>
 </body>
 </html>
