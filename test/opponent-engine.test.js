@@ -47,11 +47,22 @@ test('pickOpponentCounter has no cap when there is no previous counteroffer', ()
   assert.ok(ov >= 70 + 3);
 });
 
-test('pickOpponentCounter never exceeds the previous counteroffer OV', () => {
-  const { CONFIG, pickOpponentCounter } = loadGame();
-  const level1 = CONFIG.levels[0];
-  const { ov } = pickOpponentCounter(level1, [0, 0], 70, 75);
-  assert.ok(ov <= 75);
+test('pickOpponentCounter caps the target at the previous counteroffer OV so the opponent does not take things back', () => {
+  const { CONFIG, enumeratePackages, computeOV, computeDV, packageDistance, pickOpponentCounter } = loadGame();
+  const level = CONFIG.levels[0];
+  const offer = [0, 0];
+  const aeff = 70;
+  const previousOV = 60;
+  const qualifying = enumeratePackages(level).filter((p) => computeOV(level, p) >= previousOV);
+  const minDist = Math.min(...qualifying.map((p) => packageDistance(p, offer)));
+  const nearest = qualifying.filter((p) => packageDistance(p, offer) === minDist);
+  const bestDV = Math.max(...nearest.map((p) => computeDV(level, p)));
+  const expected = nearest.find((p) => computeDV(level, p) === bestDV);
+  const capped = pickOpponentCounter(level, offer, aeff, previousOV);
+  const uncapped = pickOpponentCounter(level, offer, aeff, null);
+  assert.ok(capped.ov >= previousOV);
+  assert.deepStrictEqual(capped.pkg, expected);
+  assert.notDeepStrictEqual(capped.pkg, uncapped.pkg);
 });
 
 test('pickOpponentCounter picks the nearest qualifying package, ties broken by highest DV', () => {
