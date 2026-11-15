@@ -1030,6 +1030,20 @@ function getOpponentLine(context, rng = Math.random) {
 }
 
 function getCoachTip(context) {
+  if (context.phase === 'debrief') {
+    // End-of-level tips from hand statistics: the first matching rules win, at most CONFIG.ui.maxTips of them.
+    const st = context.stats;
+    const candidates = [
+      [st.concedes >= CONFIG.ui.concedeTipMin && st.trades === 0, `You made ${st.concedes} concessions and never traded. Next time, ask for something back whenever you give something up.`],
+      [st.asks === 0, 'You never asked a question, so you played blind. One early question shows which term they care about most.'],
+      [st.bluffsCaught > 0, 'A caught bluff costs trust now and reputation later. Bluff rarely, and not against someone who reads you well.'],
+      [st.holdFirmTurns >= CONFIG.ui.holdFirmTipMin, `You held firm on ${st.holdFirmTurns} turns. That builds pressure but wears down the relationship, so mix in a Trade.`],
+      [st.trades >= 1, `You made ${st.trades} trade${st.trades === 1 ? '' : 's'}. Giving what you value less for what you value more is the heart of the game.`],
+      [true, 'Look for terms where your weights differ from theirs. That is where both sides can gain.'],
+      [true, 'Check the relationship meter after every move. A good deal on paper still fails if the relationship drops too far.'],
+    ];
+    return candidates.filter((c) => c[0]).slice(0, CONFIG.ui.maxTips).map((c) => c[1]);
+  }
   const {
     personaKey, turnNumber, line, lastLine, tone, expression, anchorResult, bluffCaught,
     skipTimeConcession, asksSoFar, relDelta, offerPkg, previousOwnOfferPkg, levelConfig,
@@ -1112,8 +1126,7 @@ function createGame(highScore) {
   return {
     screen: 'title',
     levelIndex: 0,
-    rep: CONFIG.rules.reputation.start,
-    repBeforeAttempt: CONFIG.rules.reputation.start,
+    repDelta: CONFIG.levels.map(() => null),
     levelScores: CONFIG.levels.map(() => 0),
     cleared: CONFIG.levels.map(() => false),
     W: null,
@@ -1125,6 +1138,18 @@ function createGame(highScore) {
   };
 }
 const game = createGame(null);
+
+// Rep is derived, never accumulated: start value plus the latest attempt's change for each earlier level.
+function repChain(upTo) {
+  const r = CONFIG.rules;
+  let rep = r.reputation.start;
+  for (let j = 0; j < upTo; j++) {
+    if (game.repDelta[j] != null) rep = Math.max(r.relMin, Math.min(r.relMax, rep + game.repDelta[j]));
+  }
+  return rep;
+}
+function repAtStart(i) { return repChain(i); }
+function currentRep() { return repChain(CONFIG.levels.length); }
 
 // ---- small helpers ----
 const $ = (sel, root) => (root || document).querySelector(sel);
@@ -1187,7 +1212,7 @@ function renderTitle() {
     <section class="panel" aria-label="Choose a level">
       <h2>Choose a table</h2>
       <ul class="levels">${items}</ul>
-      <p>Reputation: <strong>${fmtNum(game.rep)}</strong> · High score: <strong>${game.highScore == null ? '—' : game.highScore}</strong></p>
+      <p>Reputation: <strong>${fmtNum(currentRep())}</strong> · High score: <strong>${game.highScore == null ? '—' : game.highScore}</strong></p>
       <div class="row"><button class="btn secondary" data-act="final">Final score</button></div>
     </section>`, '♠');
 }
@@ -1214,7 +1239,7 @@ function renderBriefing() {
     </section>
     <section class="panel">
       <h2>Your stacks</h2>
-      <p>Relationship starts at <strong>${fmtNum(clampRel(lv.persona.startingRel(game.rep)))}</strong>. You need <strong>${lv.persona.minRel}</strong> or more to clear this level. You have <strong>${lv.persona.maxTurns}</strong> turns. Reputation: <strong>${fmtNum(game.rep)}</strong>.</p>
+      <p>Relationship starts at <strong>${fmtNum(clampRel(lv.persona.startingRel(repAtStart(game.levelIndex))))}</strong>. You need <strong>${lv.persona.minRel}</strong> or more to clear this level. You have <strong>${lv.persona.maxTurns}</strong> turns. Reputation: <strong>${fmtNum(repAtStart(game.levelIndex))}</strong>.</p>
       <div class="row"><button class="btn" data-act="begin">Set your line</button><button class="btn secondary" data-act="menu">Menu</button></div>
     </section>`, lv.suit);
 }
@@ -1250,13 +1275,13 @@ function startHand() {
   const lv = curLevel();
   const W = parseInt($('#line-range').value, 10);
   game.W = W;
-  game.hand = createInitialHandState(lv, W, game.rep);
+  game.hand = createInitialHandState(lv, W, repAtStart(game.levelIndex));
   game.draft = makeDraft(lv, game.hand);
   game.result = null;
   game.lastReplyHTML = '';
   renderTable();
   const first = getReactionFace(0);
-  addChat('opp', oppMsgHTML(first, [getOpponentLine({ personaKey: lv.personaKey, special: 'opening', repBand: repBand(game.rep) })]));
+  addChat('opp', oppMsgHTML(first, [getOpponentLine({ personaKey: lv.personaKey, special: 'opening', repBand: repBand(repAtStart(game.levelIndex)) })]));
 }
 
 function meterHTML(id, label, icon) {
@@ -1410,7 +1435,7 @@ function updateTableControls() {
   dvMeter.classList.toggle('low', below);
   paintMeter('m-dv', dv, { at: game.W, text: `Your line W = ${game.W}` });
   paintMeter('m-rel', hand.rel, { at: lv.persona.minRel, text: `Needs ${lv.persona.minRel}+` });
-  paintMeter('m-rep', game.rep);
+  paintMeter('m-rep', repAtStart(game.levelIndex));
 
   // Play move: needs a card, a legal offer and an offer at or above the line.
   let offerMsg = '';
@@ -1420,7 +1445,7 @@ function updateTableControls() {
     if (!o.legal) offerMsg = o.reason;
     else if (below) offerMsg = `This offer is below your line (${fmtNum(dv)} is less than ${game.W}).`;
   }
-  if (!d.line) hint = 'Pick a card to say something.';
+  if (!final && !d.line) hint = 'Pick a card to say something.';
   $('#offer-msg').textContent = offerMsg;
   $('#play-hint').textContent = hint;
   $('#play').disabled = !d.line || offerMsg !== '';
@@ -1537,32 +1562,23 @@ function finishLevel(action) {
   if (game.result) return;
   const hand = game.hand;
   const res = determineEnding(hand, hand.ended ? null : action);
-  const rep = updateReputation(game.rep, { ending: res.ending, finalRel: res.rel, bluffsCaughtThisLevel: hand.bluffsCaughtThisLevel });
+  const repStart = repAtStart(game.levelIndex);
+  const rep = updateReputation(repStart, { ending: res.ending, finalRel: res.rel, bluffsCaughtThisLevel: hand.bluffsCaughtThisLevel });
   const score = computeLevelScore(res.ending, res.dv, res.rel, game.W);
-  game.result = Object.assign({}, res, { score, repBefore: game.rep, repAfter: rep.rep, repChanges: rep.changes });
-  game.rep = rep.rep;
+  game.result = Object.assign({}, res, { score, repBefore: repStart, repAfter: rep.rep, repChanges: rep.changes });
+  game.repDelta[game.levelIndex] = rep.rep - repStart;
   game.levelScores[game.levelIndex] = score;
-  game.cleared[game.levelIndex] = res.cleared;
+  game.cleared[game.levelIndex] = game.cleared[game.levelIndex] || res.cleared;
   renderDebrief();
 }
 
 // ---- 5. Debrief ----
-// Cumulative end-of-level tips (spec: "built from the hand's statistics"); per-move coaching stays in getCoachTip.
-function getDebriefTips(hand) {
+function debriefStats(hand, r) {
   const count = (line) => hand.log.filter((e) => e.line === line).length;
-  const concedes = count('concede');
-  const trades = count('trade');
-  const holds = count('holdFirm');
-  const candidates = [
-    [concedes >= CONFIG.ui.concedeTipMin && trades === 0, `You made ${concedes} concessions and never traded. Next time, ask for something back whenever you give something up.`],
-    [hand.asksSoFar === 0, 'You never asked a question, so you played blind. One early question shows which term they care about most.'],
-    [hand.bluffsCaughtThisLevel > 0, 'A caught bluff costs trust now and reputation later. Bluff rarely, and not against someone who reads you well.'],
-    [holds >= CONFIG.ui.holdFirmTipMin, `You held firm on ${holds} turns. That builds pressure but wears down the relationship, so mix in a Trade.`],
-    [trades >= 1, `You made ${trades} trade${trades === 1 ? '' : 's'}. Giving what you value less for what you value more is the heart of the game.`],
-    [true, 'Look for terms where your weights differ from theirs. That is where both sides can gain.'],
-    [true, 'Check the relationship meter after every move. A good deal on paper still fails if the relationship drops too far.'],
-  ];
-  return candidates.filter((c) => c[0]).slice(0, CONFIG.ui.maxTips).map((c) => c[1]);
+  return {
+    concedes: count('concede'), trades: count('trade'), asks: hand.asksSoFar, bluffsCaught: hand.bluffsCaughtThisLevel,
+    holdFirmTurns: count('holdFirm'), cleared: r.cleared, ending: r.ending,
+  };
 }
 
 function renderDebrief() {
@@ -1581,7 +1597,9 @@ function renderDebrief() {
     if (best != null && best - r.dv > 0) left = fmtNum(best - r.dv) + ' points of deal value';
   }
   const timeline = hand.log.map((e) => `<tr><td>${e.turn}</td><td>${UI_TEXT.lines[e.line].name}</td><td>${UI_TEXT.tones.find((t) => t.key === e.tone).name}</td><td>${UI_TEXT.expressions.find((x) => x.key === e.expression).name}</td><td>${fmtDelta(e.relDelta)}</td></tr>`).join('');
-  const hasNext = r.cleared && game.levelIndex + 1 < CONFIG.levels.length;
+  const isLast = game.levelIndex + 1 >= CONFIG.levels.length;
+  const hasNext = r.cleared && !isLast;
+  const toFinal = r.cleared && isLast;
   show(`
     <h1 id="screen-heading" tabindex="-1">${suitHTML(lv.suit)} Debrief</h1>
     <section class="panel">
@@ -1599,13 +1617,14 @@ function renderDebrief() {
       <h2>Turn by turn</h2>
       <div class="tablewrap" tabindex="0" role="region" aria-label="Turn timeline"><table><thead><tr><th>Turn</th><th>Line</th><th>Tone</th><th>Expression</th><th>Rel change</th></tr></thead><tbody>${timeline || '<tr><td colspan="5">No turns were played.</td></tr>'}</tbody></table></div>
     </section>
-    <section class="panel"><h2>For next time</h2><ul class="tips">${getDebriefTips(hand).map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>
+    <section class="panel"><h2>For next time</h2><ul class="tips">${getCoachTip({ phase: 'debrief', stats: debriefStats(hand, r) }).map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>
     ${game.lastReplyHTML ? `<section class="panel"><h2>Last exchange</h2><div class="chat" style="max-height:none">${game.lastReplyHTML}</div></section>` : ''}
     <div class="row">
       <button class="btn" data-act="retry">Retry</button>
       ${hasNext ? '<button class="btn" data-act="next">Next level</button>' : ''}
+      ${toFinal ? '<button class="btn" data-act="final">Final score</button>' : ''}
       <button class="btn secondary" data-act="menu">Menu</button>
-      <button class="btn secondary" data-act="final">Final score</button>
+      ${toFinal ? '' : '<button class="btn secondary" data-act="final">Final score</button>'}
     </div>`, lv.suit);
 }
 
@@ -1613,7 +1632,7 @@ function renderDebrief() {
 function renderFinal() {
   game.screen = 'final';
   const anyCleared = game.cleared.some(Boolean);
-  const total = computeFinalScore(game.levelScores, game.rep);
+  const total = computeFinalScore(game.levelScores, currentRep());
   const stored = readHighScore();
   let isNew = false;
   if (anyCleared && (stored == null || total > stored)) { isNew = true; writeHighScore(total); }
@@ -1623,7 +1642,7 @@ function renderFinal() {
     <h1 id="screen-heading" tabindex="-1">Final score</h1>
     <section class="panel">
       <table><thead><tr><th>Level</th><th>Result</th><th>Score</th></tr></thead><tbody>${rows}
-        <tr><th scope="row">Reputation ${fmtNum(game.rep)} × ${CONFIG.rules.score.repFinal}</th><td></td><td>${fmtNum(CONFIG.rules.score.repFinal * game.rep)}</td></tr>
+        <tr><th scope="row">Reputation ${fmtNum(currentRep())} × ${CONFIG.rules.score.repFinal}</th><td></td><td>${fmtNum(CONFIG.rules.score.repFinal * currentRep())}</td></tr>
         <tr><th scope="row">Total</th><td></td><td><strong>${fmtNum(total)}</strong></td></tr></tbody></table>
       <p>High score: <strong>${game.highScore == null ? '—' : game.highScore}</strong>${isNew ? ' 🏆 New high score!' : ''}</p>
       ${anyCleared ? '' : '<p class="muted">Clear a level to record a high score.</p>'}
@@ -1633,7 +1652,7 @@ function renderFinal() {
 
 // ---- wiring ----
 const ACTIONS = {
-  level: (b) => { game.levelIndex = parseInt(b.dataset.level, 10); game.repBeforeAttempt = game.rep; renderBriefing(); },
+  level: (b) => { game.levelIndex = parseInt(b.dataset.level, 10); renderBriefing(); },
   final: () => renderFinal(),
   menu: () => renderTitle(),
   begin: () => renderSetLine(),
@@ -1645,13 +1664,8 @@ const ACTIONS = {
   play: () => playMove(),
   accept: () => acceptOffer(),
   walk: () => walkAway(),
-  retry: () => {
-    game.rep = game.repBeforeAttempt;
-    game.levelScores[game.levelIndex] = 0;
-    game.cleared[game.levelIndex] = false;
-    renderBriefing();
-  },
-  next: () => { game.levelIndex += 1; game.repBeforeAttempt = game.rep; renderBriefing(); },
+  retry: () => renderBriefing(),
+  next: () => { game.levelIndex += 1; renderBriefing(); },
   again: () => { Object.assign(game, createGame(game.highScore)); renderTitle(); },
 };
 

@@ -278,3 +278,39 @@ test('rep bands and reactions live in CONFIG.rules', () => {
   assert.deepStrictEqual(CONFIG.rules.repBands, { respectful: 65, neutral: 35 });
   assert.strictEqual(CONFIG.rules.reactions.length, 5);
 });
+
+const debriefStats = (overrides = {}) => ({
+  concedes: 0, trades: 0, asks: 1, bluffsCaught: 0, holdFirmTurns: 0, cleared: true, ending: 'deal', ...overrides,
+});
+
+test('debrief phase of getCoachTip returns 2 to 3 non-empty strings', () => {
+  const game = loadGame();
+  for (const stats of [
+    debriefStats(),
+    debriefStats({ concedes: 3, asks: 0, bluffsCaught: 1, holdFirmTurns: 4, trades: 0 }),
+    debriefStats({ trades: 2 }),
+  ]) {
+    const tips = game.getCoachTip({ phase: 'debrief', stats });
+    assert.ok(Array.isArray(tips));
+    assert.ok(tips.length >= 2 && tips.length <= 3, `got ${tips.length} tips`);
+    for (const t of tips) { assert.strictEqual(typeof t, 'string'); assert.ok(t.length > 0); }
+  }
+});
+
+test('debrief tips follow rule order: unreturned concessions come first, then no questions, then bluffs', () => {
+  const game = loadGame();
+  const tips = game.getCoachTip({ phase: 'debrief', stats: debriefStats({ concedes: 2, trades: 0, asks: 0, bluffsCaught: 1 }) });
+  assert.strictEqual(tips.length, 3);
+  assert.match(tips[0], /concessions and never traded/);
+  assert.match(tips[1], /never asked a question/);
+  assert.match(tips[2], /bluff/i);
+  // Two concessions with a trade do not trigger the concessions tip; praise for trades appears.
+  const withTrade = game.getCoachTip({ phase: 'debrief', stats: debriefStats({ concedes: 2, trades: 1 }) });
+  assert.ok(!withTrade.some((t) => /never traded/.test(t)));
+  assert.ok(withTrade.some((t) => /trade/.test(t)));
+});
+
+test('the per-move path of getCoachTip (no phase) still returns a string', () => {
+  const game = loadGame();
+  assert.strictEqual(typeof game.getCoachTip(tipCtx(game)), 'string');
+});
