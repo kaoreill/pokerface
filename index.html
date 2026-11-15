@@ -30,7 +30,59 @@ const CONFIG = {
           opponentWeight: 0.60,
         },
       ],
-      persona: { A0: 80, Ro: 45, c: 5, maxTurns: 8, minRel: 40, bluffDetection: 0.20, startingRel: () => 55 },
+      persona: { A0: 80, Ro: 45, c: 5, maxTurns: 8, minRel: 40, bluffDetection: 0.20, startingRel: () => 55,
+        lines: {
+          opening: [
+            "Hi! Thanks so much for making time. I've been following what you're building and I'm genuinely excited about it. Shall we talk about what a role here could look like?",
+            "Hey, great to finally sit down together! I love the product and I'd really like to be part of it, so let's see if we can make the numbers work.",
+          ],
+          accepting: [
+            "Yes, that works for me! I'm in, and I can't wait to start building this with you.",
+            "Done! That feels fair to me, and I'm really looking forward to getting started.",
+          ],
+          countering: [
+            "I like where this is going, I just need to be a little closer on a couple of things. Here's where I can go:",
+            "Okay, I think we're nearly there! Here's what I'd be comfortable with:",
+          ],
+          finalOffer: [
+            "I've loved talking this through, but this is my best and final offer. I really can't go any further, so it's yours to take or leave.",
+            "I want to be straight with you: this is as far as I can go. It's my last offer, so either take it or we part ways here.",
+          ],
+          bluffCaught: [
+            "Hmm, I don't think you really have another option, to be honest. That felt a bit off, and now I'm a little less sure I can trust what you tell me.",
+            "Come on, I can tell you're bluffing. I'd so much rather you just be straight with me.",
+          ],
+          walkedOut: [
+            "I'm sorry, I don't think this is going to work. I'm going to step out, but thank you for your time.",
+            "I was really excited about this, but it doesn't feel right anymore. I'll leave it here. Good luck with the company.",
+          ],
+          '+4': [
+            "Oh, that's great to hear! I feel like we're really on the same page.",
+            "I love that. Honestly, it makes me even more excited about joining you.",
+            "Wow, thank you, that means a lot. I feel like you really get where I'm coming from.",
+          ],
+          '+1to3': [
+            "That sounds reasonable. I appreciate you putting it that way.",
+            "Okay, nice, I'm happy with the direction this is going.",
+            "Thanks, that helps. I'm feeling pretty good about this conversation.",
+          ],
+          '0': [
+            "Okay. Let me think about that for a second.",
+            "Hm, I'm not sure what to make of that yet. Go on?",
+            "Right. I'll need a moment to take that in.",
+          ],
+          '-1to-4': [
+            "Oh. That's not quite what I was hoping to hear.",
+            "Hmm, I have to be honest, that stings a little.",
+            "Okay... I thought we were having a friendlier conversation than this.",
+          ],
+          '<=-5': [
+            "Wow. I didn't expect it to get this tense. That really isn't how I wanted this to go.",
+            "That's honestly a bit hurtful. I came here excited, and now I'm not so sure.",
+            "I'm really taken aback. If that's how it's going to be, I'm not sure we're a fit.",
+          ],
+        },
+      },
     },
     {
       key: 'cofounder',
@@ -63,7 +115,59 @@ const CONFIG = {
           opponentWeight: 0.45,
         },
       ],
-      persona: { A0: 85, Ro: 50, c: 5, maxTurns: 8, minRel: 60, bluffDetection: 0.50, startingRel: (rep) => 50 + 0.4 * (rep - 50) },
+      persona: { A0: 85, Ro: 50, c: 5, maxTurns: 8, minRel: 60, bluffDetection: 0.50, startingRel: (rep) => 50 + 0.4 * (rep - 50),
+        lines: {
+          opening: [
+            "Alright. Before we start, I want it on the record that I built half of this thing with my own hands. I expect the split to reflect that.",
+            "Let's talk about the split. I've put in just as many late nights as you have, and I'd like that to count for something.",
+          ],
+          accepting: [
+            "Fine, I can live with that. It feels like you actually see what I bring. Let's do it.",
+            "Yes. That's fair, and I appreciate it. Let's go build this thing together.",
+          ],
+          countering: [
+            "I'm willing to move, but it has to feel right to me. Here's where I can go:",
+            "I've thought about it, and this is what I could accept:",
+          ],
+          finalOffer: [
+            "This is where I stop. It's my final offer, and I won't negotiate my place in my own company any further. Take it or leave it.",
+            "I've given you all the room I'm going to give. That's my last word, so accept it or we're done here.",
+          ],
+          bluffCaught: [
+            "You don't have another option, do you? I've known you too long to fall for that, and honestly, it's insulting that you'd try.",
+            "Please. I can see right through that. If we're going to be partners for years, I need to be able to trust what you say.",
+          ],
+          walkedOut: [
+            "I've heard enough. I didn't come here to be talked down to. I'm out.",
+            "No. I'm not doing this. If that's how you see me, we have nothing left to discuss.",
+          ],
+          '+4': [
+            "Now that's what I wanted to hear. It feels good to be seen as an equal.",
+            "Thank you. I mean that. This is the first time today I feel like we're actually partners.",
+            "I appreciate that, really. That kind of respect goes a long way with me.",
+          ],
+          '+1to3': [
+            "Okay. That's a fair thing to say, and I notice you said it.",
+            "That's closer to how I see it. I'm listening.",
+            "Good. I can work with that.",
+          ],
+          '0': [
+            "Hm. Go on, I'm listening.",
+            "I'll reserve judgment on that one.",
+            "Noted. I'm not going to react until I see where you're going.",
+          ],
+          '-1to-4': [
+            "That's not great. It sounds like you're brushing aside everything I've done here.",
+            "I don't love how that came across. I expected more respect than that.",
+            "Hm. Is that really how you see my contribution?",
+          ],
+          '<=-5': [
+            "Are you serious? After everything I've put into this company, that's how you talk to me?",
+            "That was uncalled for. I won't sit here and be spoken to like an employee.",
+            "That crosses a line. I'm starting to wonder why I'm even here.",
+          ],
+        },
+      },
     },
     {
       key: 'merger',
@@ -103,7 +207,73 @@ const CONFIG = {
           opponentWeight: 0.10,
         },
       ],
-      persona: { A0: 90, Ro: 55, c: 4, maxTurns: 10, minRel: 45, bluffDetection: 0.70, startingRel: (rep) => 50 + 0.4 * (rep - 50) },
+      persona: { A0: 90, Ro: 55, c: 4, maxTurns: 10, minRel: 45, bluffDetection: 0.70, startingRel: (rep) => 50 + 0.4 * (rep - 50),
+        lines: {
+          opening: [
+            "Thank you for coming. I've prepared thoroughly, and I assume you have too. Let's talk about the merger.",
+            "Let's not waste each other's time. You know what we're offering, and I know what your company is worth. Where would you like to start?",
+          ],
+          openingByRep: {
+            respectful: [
+              "I've done my homework on you, and your reputation precedes you: people say you keep your word. I'd like to start from that standing, so let's talk about this merger.",
+              "Your track record is a good one, and I don't say that often. I expect a straight conversation, and I think we can have one.",
+            ],
+            neutral: [
+              "I've read everything I could find on you and your company. Your reputation tells me very little, so I'll judge you by what you do at this table.",
+              "I know your numbers and I know your market, and you're not widely known for anything either way. Let's see which way you go.",
+            ],
+            distrustful: [
+              "I'll be direct: I've heard things about how you operate, and they don't inspire confidence. You'll have to earn every inch of trust here.",
+              "Your reputation arrived before you did, and it isn't a flattering one. Let's keep this tight and see whether it's deserved.",
+            ],
+          },
+          accepting: [
+            "Agreed. That's a deal I can take to my board. I'll have the paperwork drawn up.",
+            "Done. You negotiated well. I'll get legal moving on this today.",
+          ],
+          countering: [
+            "I can move, but not that far. Here is what I can put on the table:",
+            "My team ran the numbers again. This is my counter:",
+          ],
+          finalOffer: [
+            "This is my final offer. My board has given me no further room, and I won't pretend otherwise. Accept it or we walk away.",
+            "That is as far as I'm authorised to go. It's final: take it, or this conversation ends.",
+          ],
+          bluffCaught: [
+            "I know a bluff when I hear one. There's no other bidder, and I'll weigh everything else you tell me a great deal more carefully now.",
+            "Let's not insult each other. I checked, and nobody else is at the table. Don't try that again.",
+          ],
+          walkedOut: [
+            "We're done here. My time is not unlimited, and this is no longer a serious conversation. Good day.",
+            "I'm ending this. We clearly want different things, and I won't spend another hour on it.",
+          ],
+          '+4': [
+            "Now that is a position I respect. Clear, firm and well argued. I'm impressed.",
+            "That's exactly the kind of answer I was hoping for. You've earned some goodwill with me.",
+            "Good. You know your value and you didn't flinch. We can do business.",
+          ],
+          '+1to3': [
+            "That's reasonable. I'll take it into account.",
+            "Fair point. You've clearly prepared, which I appreciate.",
+            "Acceptable. Let's continue on that basis.",
+          ],
+          '0': [
+            "Noted. I'll reserve my response.",
+            "Let's see how the numbers hold up.",
+            "I have nothing to add to that yet.",
+          ],
+          '-1to-4': [
+            "I expected more from you than that. Think about what you're doing.",
+            "That wasn't convincing. You'll have to do better.",
+            "That didn't land. Try again, and bring something solid.",
+          ],
+          '<=-5': [
+            "That's unacceptable. I don't negotiate with people who talk to me that way.",
+            "I strongly suggest you reconsider how you speak to me, because this is going nowhere.",
+            "You've just made this much harder for yourself. I don't forget that.",
+          ],
+        },
+      },
     },
   ],
   rules: {
@@ -124,6 +294,14 @@ const CONFIG = {
     },
     relMin: 0,
     relMax: 100,
+    repBands: { respectful: 65, neutral: 35 },
+    reactions: [
+      { min: 4, face: '😄', caption: 'leans in, nodding', bucket: '+4' },
+      { min: 1, face: '🙂', caption: 'relaxed, open posture', bucket: '+1to3' },
+      { min: 0, face: '😐', caption: 'still, hard to read', bucket: '0' },
+      { min: -4, face: '😒', caption: 'arms crossed', bucket: '-1to-4' },
+      { min: -Infinity, face: '😠', caption: 'leans back, looks away', bucket: '<=-5' },
+    ],
     tones: {
       warm: { rel: { maya: 3, jonas: 2, victoria: -1 }, pressure: 0 },
       neutral: { rel: { maya: 1, jonas: 0, victoria: 0 }, pressure: 0 },
@@ -654,8 +832,99 @@ function runSelfTest(options = {}) {
   return { passed, levels };
 }
 
+function termDirections(offerPkg, previousOwnOfferPkg) {
+  return offerPkg.map((choice, i) => Math.sign(choice - previousOwnOfferPkg[i]));
+}
+
+function getReactionFace(delta) {
+  const r = CONFIG.rules.reactions.find((entry) => delta >= entry.min);
+  return { face: r.face, caption: r.caption, bucket: r.bucket };
+}
+
+function relChangeBucket(delta) {
+  return getReactionFace(delta).bucket;
+}
+
+function repBand(rep) {
+  const bands = CONFIG.rules.repBands;
+  if (rep >= bands.respectful) return 'respectful';
+  if (rep >= bands.neutral) return 'neutral';
+  return 'distrustful';
+}
+
+function getOpponentLine(context, rng = Math.random) {
+  const { personaKey, relChangeBucket: bucket, special, repBand: band } = context;
+  const level = CONFIG.levels.find((l) => l.personaKey === personaKey);
+  if (!level) throw new Error(`No persona "${personaKey}" to speak for.`);
+  const lines = level.persona.lines;
+  let bank;
+  let bankName;
+  if (special) {
+    if (special === 'opening' && personaKey === 'victoria' && band) {
+      bank = lines.openingByRep && lines.openingByRep[band];
+      bankName = `openingByRep.${band}`;
+    } else {
+      bank = lines[special];
+      bankName = special;
+    }
+  } else {
+    bank = lines[bucket];
+    bankName = String(bucket);
+  }
+  if (!Array.isArray(bank) || bank.length === 0) {
+    throw new Error(`Missing or empty dialogue bank "${bankName}" for ${personaKey}.`);
+  }
+  return bank[Math.floor(rng() * bank.length)];
+}
+
+function getCoachTip(context) {
+  const {
+    personaKey, turnNumber, line, lastLine, tone, expression, anchorResult, bluffCaught,
+    skipTimeConcession, asksSoFar, relDelta, offerPkg, previousOwnOfferPkg, levelConfig,
+  } = context;
+
+  if (bluffCaught) {
+    return 'They saw through the bluff. That costs you their trust right now and your reputation when the level ends, so only bluff when you can afford to be called.';
+  }
+
+  const secondConcede = line === 'concede' && lastLine === 'concede';
+  if (secondConcede) return 'You gave something up and got nothing back. Try a Trade.';
+
+  if (expression === 'open' && skipTimeConcession) return 'They could see you had room. Consider a poker face.';
+
+  if (anchorResult === 'insulting') {
+    const a = CONFIG.rules.anchor;
+    return `Your anchor was too high and came across as insulting. Aim for an offer worth ${a.strongMin} to ${a.strongMax} to you.`;
+  }
+  if (anchorResult === 'weak') {
+    return `Your anchor was too weak and gave away your best ground. Open with an offer worth at least ${CONFIG.rules.anchor.strongMin} to you.`;
+  }
+
+  const badTone = (tone === 'hard' && (personaKey === 'maya' || personaKey === 'jonas'))
+    || (tone === 'warm' && personaKey === 'victoria');
+  if (badTone) {
+    const who = { maya: 'Maya', jonas: 'Jonas', victoria: 'Victoria' }[personaKey];
+    return `A ${tone} tone doesn't land with ${who}. Try a different tone next time.`;
+  }
+
+  if (turnNumber >= 3 && asksSoFar === 0) return "You still don't know what they care about.";
+
+  if (line === 'trade' && offerPkg && previousOwnOfferPkg && levelConfig) {
+    const dirs = termDirections(offerPkg, previousOwnOfferPkg);
+    const gave = dirs.indexOf(1);
+    const got = dirs.indexOf(-1);
+    if (gave !== -1 && got !== -1) {
+      return `Good trade: you gave ground on ${levelConfig.terms[gave].name} and got ${levelConfig.terms[got].name} in return.`;
+    }
+  }
+
+  if (relDelta > 0) return 'That went over well. Keep listening for what matters most to them.';
+  if (relDelta < 0) return 'That cost you some goodwill. Watch how they react before your next move.';
+  return "Nothing moved there. Look for a term they'd value more than you do.";
+}
+
 // ---- end of game logic ----
-if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter, classifyOfferChange, isOfferLegal, isLineLegal, applyMoveEffects, createInitialHandState, playTurn, determineEnding, computeLevelScore, updateReputation, computeFinalScore, bestAcceptableDV, runSelfTest }; }
+if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter, classifyOfferChange, isOfferLegal, isLineLegal, applyMoveEffects, createInitialHandState, playTurn, determineEnding, computeLevelScore, updateReputation, computeFinalScore, bestAcceptableDV, runSelfTest, termDirections, getReactionFace, relChangeBucket, repBand, getOpponentLine, getCoachTip }; }
 if (typeof window !== 'undefined') { runSelfTest(); }
 </script>
 </body>
