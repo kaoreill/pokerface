@@ -126,8 +126,35 @@ function computeOV(levelConfig, pkg) {
   return total * 100;
 }
 
+function enumeratePackages(levelConfig) {
+  let pkgs = [[]];
+  for (const term of levelConfig.terms) {
+    const next = [];
+    for (const prefix of pkgs) {
+      for (let i = 0; i < term.options.length; i++) next.push(prefix.concat(i));
+    }
+    pkgs = next;
+  }
+  return pkgs;
+}
+
+function computeMaxLine(levelConfig) {
+  const floor = levelConfig.persona.Ro - 5;
+  let best = -Infinity;
+  for (const pkg of enumeratePackages(levelConfig)) {
+    if (computeOV(levelConfig, pkg) >= floor) best = Math.max(best, computeDV(levelConfig, pkg));
+  }
+  return Math.floor(Math.min(best - 5, 70));
+}
+
+function packageDistance(pkgA, pkgB) {
+  let total = 0;
+  for (let i = 0; i < pkgA.length; i++) total += Math.abs(pkgA[i] - pkgB[i]);
+  return total;
+}
+
 // ---- end of game logic ----
-if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV }; }
+if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance }; }
 </script>
 </body>
 </html>
