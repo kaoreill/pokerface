@@ -63,7 +63,7 @@ const CONFIG = {
           opponentWeight: 0.45,
         },
       ],
-      persona: { A0: 85, Ro: 50, c: 4, maxTurns: 8, minRel: 60, bluffDetection: 0.50, startingRel: (rep) => 50 + 0.4 * (rep - 50) },
+      persona: { A0: 85, Ro: 50, c: 5, maxTurns: 8, minRel: 60, bluffDetection: 0.50, startingRel: (rep) => 50 + 0.4 * (rep - 50) },
     },
     {
       key: 'merger',
@@ -103,7 +103,7 @@ const CONFIG = {
           opponentWeight: 0.10,
         },
       ],
-      persona: { A0: 90, Ro: 55, c: 4, maxTurns: 10, minRel: 45, bluffDetection: 0.70, startingRel: (rep) => 45 + 0.4 * (rep - 50) },
+      persona: { A0: 90, Ro: 55, c: 4, maxTurns: 10, minRel: 45, bluffDetection: 0.70, startingRel: (rep) => 50 + 0.4 * (rep - 50) },
     },
   ],
   rules: {
@@ -583,8 +583,80 @@ function bestAcceptableDV(handState) {
   return best;
 }
 
+function selfTestLevel(levelConfig) {
+  const { persona } = levelConfig;
+  const packages = enumeratePackages(levelConfig);
+  const checks = [];
+
+  const playerSum = levelConfig.terms.reduce((sum, t) => sum + t.playerWeight, 0);
+  const opponentSum = levelConfig.terms.reduce((sum, t) => sum + t.opponentWeight, 0);
+  checks.push({
+    name: 'weights sum to 1',
+    pass: Math.abs(playerSum - 1) < 1e-9 && Math.abs(opponentSum - 1) < 1e-9,
+    detail: `player ${playerSum}, opponent ${opponentSum}`,
+  });
+
+  const viable = packages.filter((pkg) => computeOV(levelConfig, pkg) >= persona.Ro && computeDV(levelConfig, pkg) >= 50);
+  checks.push({
+    name: 'a package has OV >= Ro and DV >= 50',
+    pass: viable.length > 0,
+    detail: `${viable.length} of ${packages.length} packages qualify (Ro ${persona.Ro})`,
+  });
+
+  const maxLine = computeMaxLine(levelConfig);
+  checks.push({ name: 'maxLine >= 40', pass: maxLine >= 40, detail: `maxLine ${maxLine}` });
+
+  let offer = null;
+  let offerGap = Infinity;
+  let offerDV = -Infinity;
+  for (const pkg of packages) {
+    const gap = Math.abs(computeOV(levelConfig, pkg) - persona.Ro);
+    const dv = computeDV(levelConfig, pkg);
+    if (gap < offerGap || (gap === offerGap && dv > offerDV)) {
+      offer = pkg;
+      offerGap = gap;
+      offerDV = dv;
+    }
+  }
+  const offerOV = computeOV(levelConfig, offer);
+  const rel = persona.startingRel(CONFIG.rules.reputation.start);
+  let acceptedTurn = null;
+  let aeff = null;
+  for (let turn = 1; turn <= persona.maxTurns; turn++) {
+    aeff = computeAcceptanceThreshold(persona, turn, 0, rel).Aeff;
+    if (offerOV >= aeff) { acceptedTurn = turn; break; }
+  }
+  checks.push({
+    name: 'offer closest to OV = Ro is accepted before the turn limit',
+    pass: acceptedTurn !== null,
+    detail: acceptedTurn !== null
+      ? `offer OV ${offerOV.toFixed(1)} (DV ${offerDV.toFixed(1)}) accepted on turn ${acceptedTurn} of ${persona.maxTurns} (Aeff ${aeff.toFixed(1)})`
+      : `offer OV ${offerOV.toFixed(1)} (DV ${offerDV.toFixed(1)}) never accepted in ${persona.maxTurns} turns (final Aeff ${aeff.toFixed(1)})`,
+  });
+
+  return checks;
+}
+
+function runSelfTest(options = {}) {
+  const log = options.log !== false;
+  const levels = CONFIG.levels.map((levelConfig) => ({ key: levelConfig.key, checks: selfTestLevel(levelConfig) }));
+  const passed = levels.every((level) => level.checks.every((c) => c.pass));
+  if (log) {
+    for (const level of levels) {
+      for (const c of level.checks) {
+        const line = `[selfTest] ${level.key}: ${c.name} - ${c.pass ? 'PASS' : 'FAIL'} (${c.detail})`;
+        if (c.pass) console.log(line); else console.error(line);
+      }
+    }
+    const summary = `[selfTest] ${passed ? 'all checks passed' : 'some checks FAILED'}`;
+    if (passed) console.log(summary); else console.error(summary);
+  }
+  return { passed, levels };
+}
+
 // ---- end of game logic ----
-if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter, classifyOfferChange, isOfferLegal, isLineLegal, applyMoveEffects, createInitialHandState, playTurn, determineEnding, computeLevelScore, updateReputation, computeFinalScore, bestAcceptableDV }; }
+if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV, enumeratePackages, computeMaxLine, packageDistance, computeAcceptanceThreshold, resolveBluffChance, pickOpponentCounter, classifyOfferChange, isOfferLegal, isLineLegal, applyMoveEffects, createInitialHandState, playTurn, determineEnding, computeLevelScore, updateReputation, computeFinalScore, bestAcceptableDV, runSelfTest }; }
+if (typeof window !== 'undefined') { runSelfTest(); }
 </script>
 </body>
 </html>
