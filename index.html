@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poker Face</title>
+</head>
+<body>
+<script>
+// Every tunable number in the game lives in CONFIG.
+const CONFIG = {
+  levels: [
+    {
+      key: 'salary',
+      name: 'Salary talk',
+      suit: '♣',
+      opponentName: 'Maya',
+      personaKey: 'maya',
+      terms: [
+        {
+          name: 'Salary',
+          options: [60000, 62500, 65000, 67500, 70000, 72500, 75000, 77500, 80000, 82500, 85000, 87500, 90000],
+          playerWeight: 0.70,
+          opponentWeight: 0.40,
+        },
+        {
+          name: 'Equity',
+          options: [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0],
+          playerWeight: 0.30,
+          opponentWeight: 0.60,
+        },
+      ],
+      persona: { A0: 80, Ro: 45, c: 5, maxTurns: 8, minRel: 40, bluffDetection: 0.20, startingRel: () => 55 },
+    },
+    {
+      key: 'cofounder',
+      name: 'Co-founder split',
+      suit: '♦',
+      opponentName: 'Jonas',
+      personaKey: 'jonas',
+      terms: [
+        {
+          name: 'Your equity share',
+          options: [70, 65, 60, 55, 50, 45, 40],
+          playerWeight: 0.50,
+          opponentWeight: 0.30,
+        },
+        {
+          name: 'Final say',
+          options: [
+            'You decide',
+            'You decide, Jonas can veto tech',
+            'Joint, an advisor breaks ties',
+            'Equal votes, no tie-break',
+          ],
+          playerWeight: 0.35,
+          opponentWeight: 0.25,
+        },
+        {
+          name: "Jonas's role",
+          options: ['VP Engineering', 'CTO', 'CTO with a board seat'],
+          playerWeight: 0.15,
+          opponentWeight: 0.45,
+        },
+      ],
+      persona: { A0: 85, Ro: 50, c: 4, maxTurns: 8, minRel: 60, bluffDetection: 0.50, startingRel: (rep) => 50 + 0.4 * (rep - 50) },
+    },
+    {
+      key: 'merger',
+      name: 'Merger',
+      suit: '♠',
+      opponentName: 'Victoria',
+      personaKey: 'victoria',
+      terms: [
+        {
+          name: 'Valuation of your company',
+          options: [12, 11, 10, 9, 8],
+          playerWeight: 0.30,
+          opponentWeight: 0.35,
+        },
+        {
+          name: 'Payment',
+          options: ['100% cash', '75% cash', '50-50', '75% stock', '100% stock'],
+          playerWeight: 0.10,
+          opponentWeight: 0.25,
+        },
+        {
+          name: 'Your role after the merger',
+          options: ['CEO', 'Co-CEO', 'COO', 'Advisor for one year', 'Exit'],
+          playerWeight: 0.15,
+          opponentWeight: 0.25,
+        },
+        {
+          name: 'Job guarantee for your team',
+          options: [24, 18, 12, 6, 0],
+          playerWeight: 0.30,
+          opponentWeight: 0.05,
+        },
+        {
+          name: 'Brand',
+          options: ['Your brand stays', 'Co-branded', 'Their brand only'],
+          playerWeight: 0.15,
+          opponentWeight: 0.10,
+        },
+      ],
+      persona: { A0: 90, Ro: 55, c: 4, maxTurns: 10, minRel: 45, bluffDetection: 0.70, startingRel: (rep) => 45 + 0.4 * (rep - 50) },
+    },
+  ],
+};
+
+function computeDV(levelConfig, pkg) {
+  let total = 0;
+  levelConfig.terms.forEach((term, idx) => {
+    const p = 1 - pkg[idx] / (term.options.length - 1);
+    total += term.playerWeight * p;
+  });
+  return total * 100;
+}
+
+function computeOV(levelConfig, pkg) {
+  let total = 0;
+  levelConfig.terms.forEach((term, idx) => {
+    const q = pkg[idx] / (term.options.length - 1);
+    total += term.opponentWeight * q;
+  });
+  return total * 100;
+}
+
+// ---- end of game logic ----
+if (typeof module !== 'undefined') { module.exports = { CONFIG, computeDV, computeOV }; }
+</script>
+</body>
+</html>
